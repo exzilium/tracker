@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useAppStore, FavoriteItem } from '../store';
+import { useAppStore, FavoriteItem, ConsumableType } from '../store';
 import { colors, typography } from '../theme';
+import EntryIcon from '../components/EntryIcon';
 
 export default function ManageFavoritesScreen({ navigation }: any) {
   const { favorites, removeFavorite, moveFavorite, moveToTopFavorite, updateFavorite } = useAppStore();
@@ -98,7 +99,10 @@ export default function ManageFavoritesScreen({ navigation }: any) {
           favorites.map((fav, index) => (
             <View key={fav.id} style={styles.favItem}>
               <Text style={styles.favNumber}>{index + 1}.</Text>
-              <Text style={styles.favIcon}>{fav.emoji}</Text>
+              
+              <View style={styles.favIconWrapper}>
+                <EntryIcon iconString={fav.emoji} size={32} color={colors.text} />
+              </View>
               
               <View style={styles.favDetails}>
                 <Text style={styles.favName}>{fav.name}</Text>
@@ -359,9 +363,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   favNumber: {
-    ...typography.h3,
+    ...typography.body,
+    fontWeight: 'bold',
     color: colors.textSecondary,
     marginRight: 12,
+  },
+  favIconWrapper: {
+    marginRight: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 32,
   },
   // Modal Styles
   modalBg: {

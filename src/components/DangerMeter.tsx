@@ -31,13 +31,10 @@ export default function DangerMeter({
   );
 
   let statusColor = colors.success;
-  let statusBg = 'rgba(76, 175, 80, 0.15)'; // faint green
   if (dangerPercent >= 100) {
     statusColor = colors.error;
-    statusBg = 'rgba(207, 102, 121, 0.15)'; // faint red
   } else if (dangerPercent >= 75) {
     statusColor = colors.warning;
-    statusBg = 'rgba(255, 152, 0, 0.15)'; // faint orange
   }
 
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -73,7 +70,7 @@ export default function DangerMeter({
     <View style={styles.container}>
       <Text style={styles.title}>Danger Level</Text>
 
-      <View style={[styles.statusBox, { backgroundColor: statusBg, borderColor: statusColor, borderWidth: 1 }]}>
+      <View style={styles.statusBox}>
         <View style={styles.liveTimeBox}>
           <Text style={[styles.liveTimeText, { color: statusColor }]}>
             Live: {currentTime.toLocaleTimeString([], {hour: 'numeric', minute:'2-digit'})}
@@ -121,8 +118,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   statusBox: {
-    borderRadius: 12,
-    padding: 16,
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
   },
   liveTimeBox: {
     alignItems: 'center',

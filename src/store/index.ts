@@ -46,7 +46,9 @@ interface AppState {
   currentMood: number;
   currentHunger: number;
   lastCheckInTime: number;
+  isQuickEntryVisible: boolean;
   
+  setQuickEntryVisible: (visible: boolean) => void;
   setProfile: (profile: Partial<UserProfile>) => void;
   setCurrentState: (mood: number, hunger: number, updateCheckInTime?: boolean) => void;
   completeOnboarding: () => void;
@@ -75,17 +77,21 @@ export const useAppStore = create<AppState>()(
       currentMood: 3,
       currentHunger: 3,
       lastCheckInTime: 0,
+      isQuickEntryVisible: false,
       consumptions: [],
       favorites: [
-        { id: 'fav1', type: 'alcohol', name: 'Wine (5oz, 12%)', emoji: '🍷', volumeOz: 5, abvPercent: 12, durationMins: 45 },
-        { id: 'fav2', type: 'alcohol', name: 'Standard Drink (12oz, 5%)', emoji: '🍺', volumeOz: 12, abvPercent: 5, durationMins: 45 },
-        { id: 'fav3', type: 'thc', name: 'Standard Joint (10mg)', emoji: '🌿', method: 'inhaled', mg: 10, durationMins: 0 },
-        { id: 'fav4', type: 'thc', name: '1 Puff (2mg)', emoji: '💨', method: 'inhaled', mg: 2, durationMins: 0 },
-        { id: 'fav5', type: 'thc', name: 'Gummy (10mg)', emoji: '🍬', method: 'edible', mg: 10, durationMins: 0 },
+        { id: 'fav1', type: 'alcohol', name: 'Wine (5oz, 12%)', emoji: 'Ionicons:wine', volumeOz: 5, abvPercent: 12, durationMins: 45 },
+        { id: 'fav2', type: 'alcohol', name: 'Standard Drink (12oz, 5%)', emoji: 'Ionicons:beer-outline', volumeOz: 12, abvPercent: 5, durationMins: 45 },
+        { id: 'fav3', type: 'thc', name: 'Standard Joint (10mg)', emoji: 'FontAwesome5:wind', method: 'inhaled', mg: 10, durationMins: 0 },
+        { id: 'fav4', type: 'thc', name: '1 Puff (2mg)', emoji: 'FontAwesome5:wind', method: 'inhaled', mg: 2, durationMins: 0 },
+        { id: 'fav5', type: 'thc', name: 'Gummy (10mg)', emoji: 'FontAwesome5:cookie-bite', method: 'edible', mg: 10, durationMins: 0 },
       ],
 
       setProfile: (newProfile) =>
         set((state) => ({ profile: { ...state.profile, ...newProfile } })),
+        
+      setQuickEntryVisible: (visible) =>
+        set({ isQuickEntryVisible: visible }),
       
       setCurrentState: (mood, hunger, updateCheckInTime = true) => 
         set((state) => ({ 

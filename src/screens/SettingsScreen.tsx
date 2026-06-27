@@ -7,14 +7,14 @@ import { colors, typography } from '../theme';
 export default function SettingsScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
   const { profile, setProfile } = useAppStore();
-  
+
   const [weightStr, setWeightStr] = useState(profile.weight ? profile.weight.toString() : '');
-  
+
   const initHeight = profile.height || 0;
   const [heightCmStr, setHeightCmStr] = useState(profile.units === 'metric' && initHeight ? initHeight.toString() : '');
   const [heightFtStr, setHeightFtStr] = useState(profile.units === 'imperial' && initHeight ? Math.floor(initHeight / 12).toString() : '');
   const [heightInStr, setHeightInStr] = useState(profile.units === 'imperial' && initHeight ? (initHeight % 12).toString() : '');
-  
+
   const [bacLimitStr, setBacLimitStr] = useState(profile.maxBAC ? profile.maxBAC.toString() : '0.08');
   const [thcLimitStr, setThcLimitStr] = useState(profile.maxTHC ? profile.maxTHC.toString() : '10');
 
@@ -36,7 +36,7 @@ export default function SettingsScreen({ navigation }: any) {
       maxBAC: parseFloat(bacLimitStr) || 0.08,
       maxTHC: parseFloat(thcLimitStr) || 10,
     });
-    
+
     navigation.goBack();
   };
 
@@ -49,9 +49,9 @@ export default function SettingsScreen({ navigation }: any) {
         <Text style={styles.title}>Settings</Text>
         <View style={{ width: 60 }} />
       </View>
-      
+
       <ScrollView contentContainerStyle={styles.content}>
-        
+
         <Text style={styles.sectionTitle}>Danger Limits</Text>
         <View style={styles.card}>
           <View style={styles.section}>
@@ -144,8 +144,8 @@ export default function SettingsScreen({ navigation }: any) {
             <Text style={styles.label}>Sex (For BAC Math)</Text>
             <View style={styles.row}>
               {(['male', 'female', 'other'] as Gender[]).map((g) => (
-                <TouchableOpacity 
-                  key={g} 
+                <TouchableOpacity
+                  key={g}
                   style={[styles.btnGender, profile.gender === g && styles.btnGenderActive]}
                   onPress={() => setProfile({ gender: g })}
                 >
@@ -158,6 +158,10 @@ export default function SettingsScreen({ navigation }: any) {
 
         <TouchableOpacity style={styles.btnSecondary} onPress={() => navigation.navigate('ManageFavorites')}>
           <Text style={styles.btnSecondaryText}>MANAGE FAVORITES</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.btnSecondary} onPress={() => navigation.navigate('Donation')}>
+          <Text style={styles.btnSecondaryText}>🍻 BUY ME A BEER</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.btnPrimary} onPress={handleSave}>
@@ -198,7 +202,8 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   sectionTitle: {
-    ...typography.h3,
+    ...typography.body,
+    fontWeight: 'bold',
     color: colors.text,
     marginBottom: 16,
     marginTop: 8,

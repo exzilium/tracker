@@ -2,6 +2,30 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Modal, TextInput, TouchableOpacity } from 'react-native';
 import { useAppStore, Consumption, ConsumableType } from '../store';
 import { colors, typography } from '../theme';
+import EntryIcon from './EntryIcon';
+import { ScrollView } from 'react-native';
+
+const ALCOHOL_ICONS = [
+  'Ionicons:beer-outline',
+  'Ionicons:wine',
+  'FontAwesome5:cocktail',
+  'FontAwesome5:glass-whiskey',
+  'MaterialCommunityIcons:bottle-wine',
+  'MaterialCommunityIcons:glass-tulip',
+  'FontAwesome5:glass-martini',
+  'Ionicons:cafe-outline'
+];
+
+const THC_ICONS = [
+  'FontAwesome5:cookie-bite',
+  'MaterialCommunityIcons:pine-tree-variant-outline',
+  'FontAwesome5:wind',
+  'MaterialCommunityIcons:candycane',
+  'MaterialCommunityIcons:cupcake',
+  'Ionicons:leaf-outline',
+  'FontAwesome5:pills',
+  'MaterialCommunityIcons:smoking'
+];
 
 interface EditConsumptionModalProps {
   visible: boolean;
@@ -66,7 +90,7 @@ export default function EditConsumptionModal({ visible, consumption, onClose }: 
           <Text style={styles.modalTitle}>Edit Log</Text>
 
           <View style={styles.inputRow}>
-            <View style={{flex: 1, marginRight: 8}}>
+            <View style={{flex: 1}}>
               <Text style={styles.inputLabel}>Name</Text>
               <TextInput
                 style={styles.input}
@@ -76,18 +100,20 @@ export default function EditConsumptionModal({ visible, consumption, onClose }: 
                 onChangeText={setEditName}
               />
             </View>
-            <View style={{width: 60}}>
-              <Text style={styles.inputLabel}>Emoji</Text>
-              <TextInput
-                style={[styles.input, { textAlign: 'center' }]}
-                placeholder="Emoji"
-                placeholderTextColor={colors.textSecondary}
-                value={editEmoji}
-                onChangeText={setEditEmoji}
-                maxLength={2}
-              />
-            </View>
           </View>
+
+          <Text style={styles.inputLabel}>Select Icon</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginBottom: 16}}>
+            {(consumption.type === 'alcohol' ? ALCOHOL_ICONS : THC_ICONS).map(icon => (
+              <TouchableOpacity
+                key={icon}
+                style={[styles.iconPickerBtn, editEmoji === icon && styles.iconPickerBtnActive]}
+                onPress={() => setEditEmoji(icon)}
+              >
+                <EntryIcon iconString={icon} size={24} color={editEmoji === icon ? colors.background : colors.text} />
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
 
           {consumption.type === 'alcohol' ? (
             <>
@@ -205,6 +231,18 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 8,
     fontSize: 16,
+  },
+  iconPickerBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  iconPickerBtnActive: {
+    backgroundColor: colors.primary,
   },
   modalActions: {
     flexDirection: 'row',

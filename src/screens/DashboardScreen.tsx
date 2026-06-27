@@ -3,8 +3,8 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'rea
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppStore, Consumption } from '../store';
 import { colors, typography } from '../theme';
-import QuickEntry from '../components/QuickEntry';
 import DangerMeter from '../components/DangerMeter';
+import EntryIcon from '../components/EntryIcon';
 import BurndownChart from '../components/BurndownChart';
 import AdBanner from '../components/BannerAd';
 import SubjectiveState from '../components/SubjectiveState';
@@ -67,28 +67,6 @@ export default function DashboardScreen({ navigation }: any) {
       <ScrollView>
         <View style={styles.headerRow}>
           <Text style={styles.header}>Dashboard</Text>
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            <TouchableOpacity 
-              style={styles.analyticsBtn} 
-              onPress={() => navigation.navigate('Donation')}
-            >
-              <Text style={styles.analyticsBtnText}>🍻</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.analyticsBtn} 
-              onPress={() => navigation.navigate('SessionsList')}
-            >
-              <Text style={styles.analyticsBtnText}>📈 Sessions Log</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.analyticsBtn} 
-              onPress={() => navigation.navigate('Settings')}
-            >
-              <Text style={[styles.analyticsBtnText, { fontSize: 16 }]}>⚙️</Text>
-            </TouchableOpacity>
-          </View>
         </View>
 
         <DangerMeter 
@@ -102,8 +80,6 @@ export default function DashboardScreen({ navigation }: any) {
 
         <SubjectiveState />
 
-        <QuickEntry />
-
         <BurndownChart consumptionsOverride={currentSessionLogs} />
         
         <AdBanner />
@@ -116,7 +92,9 @@ export default function DashboardScreen({ navigation }: any) {
             <View>
               {currentSessionLogs.map(item => (
                 <View key={item.id} style={styles.logRow}>
-                  <Text style={styles.logIcon}>{item.emoji || (item.type === 'alcohol' ? '🍺' : '🍃')}</Text>
+                  <View style={{ marginRight: 12 }}>
+                    <EntryIcon iconString={item.emoji || (item.type === 'alcohol' ? '🍺' : '🍃')} size={24} color={colors.textSecondary} />
+                  </View>
                   <View style={styles.logInfo}>
                     <Text style={styles.logName}>{item.name}</Text>
                     <Text style={styles.logTime}>{timeAgo(item.timestamp)}</Text>
@@ -161,17 +139,6 @@ const styles = StyleSheet.create({
     ...typography.h1,
     color: colors.primary,
   },
-  analyticsBtn: {
-    backgroundColor: colors.surface,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  analyticsBtnText: {
-    color: colors.secondary,
-    fontWeight: 'bold',
-    fontSize: 12,
-  },
   logSection: {
     flex: 1,
     paddingHorizontal: 24,
@@ -190,10 +157,9 @@ const styles = StyleSheet.create({
   logRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surface,
-    padding: 16,
-    borderRadius: 8,
-    marginBottom: 8,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.05)',
   },
   logIcon: {
     fontSize: 24,

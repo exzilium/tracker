@@ -6,7 +6,7 @@ import { getCurrentLevels } from '../utils/currentLevels';
 import { colors, typography } from '../theme';
 
 const { width } = Dimensions.get('window');
-const CHART_WIDTH = width - 80; // 40 padding on each side
+const CHART_WIDTH = width;
 const CHART_HEIGHT = 150;
 
 const formatTime = (ts: number, showMins = false) => {
@@ -197,11 +197,17 @@ export default function BurndownChart({ consumptionsOverride, startTimeOverride 
           <Path d={`${bacPathD} L${CHART_WIDTH},${CHART_HEIGHT} L0,${CHART_HEIGHT} Z`} fill="url(#gradBac)" />
           <Path d={bacPathD} fill="none" stroke={colors.primary} strokeWidth={3} />
           <Path d={`M0,${limitBacY} L${CHART_WIDTH},${limitBacY}`} fill="none" stroke={colors.primary} strokeWidth={1} strokeDasharray="5,5" opacity={0.5} />
+          <SvgText x={10} y={Math.max(10, limitBacY - 5)} fill={colors.primary} fontSize="10" opacity={0.8} fontWeight="bold">
+            MAX {maxBAC} BAC
+          </SvgText>
           
           {/* THC Curve */}
           <Path d={`${thcPathD} L${CHART_WIDTH},${CHART_HEIGHT} L0,${CHART_HEIGHT} Z`} fill="url(#gradThc)" />
           <Path d={thcPathD} fill="none" stroke={colors.success} strokeWidth={3} />
           <Path d={`M0,${limitThcY} L${CHART_WIDTH},${limitThcY}`} fill="none" stroke={colors.success} strokeWidth={1} strokeDasharray="5,5" opacity={0.5} />
+          <SvgText x={CHART_WIDTH - 10} y={Math.max(10, limitThcY - 5)} fill={colors.success} fontSize="10" textAnchor="end" opacity={0.8} fontWeight="bold">
+            MAX {maxTHC}mg
+          </SvgText>
           
           {labels}
 
@@ -253,7 +259,7 @@ export default function BurndownChart({ consumptionsOverride, startTimeOverride 
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 24,
+    paddingHorizontal: 0,
     marginVertical: 16,
   },
   headerRow: {
@@ -261,6 +267,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
+    paddingHorizontal: 24,
   },
   title: {
     ...typography.h2,
@@ -290,11 +297,8 @@ const styles = StyleSheet.create({
   },
   chartContainer: {
     height: CHART_HEIGHT,
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    overflow: 'hidden',
+    backgroundColor: 'transparent',
     position: 'relative',
-    marginHorizontal: 16,
   },
   tooltip: {
     position: 'absolute',

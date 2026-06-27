@@ -9,13 +9,41 @@ const CHECK_IN_COOLDOWN_MS = 2 * 60 * 60 * 1000; // 2 hours
 const MOOD_LABELS = ['1 - Horrible', '2 - Bad', '3 - Normal', '4 - Good', "5 - I'm Rollin'"];
 const HUNGER_LABELS = ['1 - No mas!', '2 - Not hungry at all', '3 - Snacky', '4 - Hungry', '5 - Starving!'];
 
+const ALCOHOL_ICONS = [
+  'Ionicons:beer-outline',
+  'Ionicons:wine',
+  'FontAwesome5:cocktail',
+  'FontAwesome5:glass-whiskey',
+  'MaterialCommunityIcons:bottle-wine',
+  'MaterialCommunityIcons:glass-tulip',
+  'FontAwesome5:glass-martini',
+  'Ionicons:cafe-outline'
+];
+
+const THC_ICONS = [
+  'FontAwesome5:cookie-bite',
+  'MaterialCommunityIcons:pine-tree-variant-outline',
+  'FontAwesome5:wind',
+  'MaterialCommunityIcons:candycane',
+  'MaterialCommunityIcons:cupcake',
+  'Ionicons:leaf-outline',
+  'FontAwesome5:pills',
+  'MaterialCommunityIcons:smoking'
+];
+
+import EntryIcon from './EntryIcon';
+
 export default function QuickEntry() {
-  const { favorites, addConsumption, addFavorite, lastCheckInTime, currentMood, currentHunger, setCurrentState } = useAppStore();
+  const { 
+    favorites, addConsumption, addFavorite, lastCheckInTime, 
+    currentMood, currentHunger, setCurrentState,
+    isQuickEntryVisible, setQuickEntryVisible 
+  } = useAppStore();
 
   const [modalVisible, setModalVisible] = useState(false);
   const [customType, setCustomType] = useState<ConsumableType>('alcohol');
   const [customName, setCustomName] = useState('');
-  const [customEmoji, setCustomEmoji] = useState('🍺');
+  const [customEmoji, setCustomEmoji] = useState(ALCOHOL_ICONS[0]);
   const [customAmount, setCustomAmount] = useState('');
   const [customAbv, setCustomAbv] = useState('');
   const [customDuration, setCustomDuration] = useState('45');
@@ -48,6 +76,7 @@ export default function QuickEntry() {
       mg: fav.mg,
       durationMins: fav.durationMins,
       calories: fav.calories,
+      timestamp: Date.now(),
     });
     scheduleHydrationReminder();
     triggerCheckInIfNeeded();
@@ -56,7 +85,7 @@ export default function QuickEntry() {
   const switchType = (type: ConsumableType) => {
     setCustomType(type);
     setCustomName('');
-    setCustomEmoji(type === 'alcohol' ? '🍺' : '🍃');
+    setCustomEmoji(type === 'alcohol' ? ALCOHOL_ICONS[0] : THC_ICONS[0]);
     setCustomAmount('');
     setCustomAbv('');
     setCustomDuration(type === 'alcohol' ? '45' : '0');
@@ -122,6 +151,7 @@ export default function QuickEntry() {
     }
 
     setModalVisible(false);
+    setQuickEntryVisible(false);
     switchType('alcohol'); // reset
     setSaveFav(false);
 
@@ -135,25 +165,42 @@ export default function QuickEntry() {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Quick Entry</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.scroll}>
-        {favorites.map((fav) => (
-          <TouchableOpacity
-            key={fav.id}
-            style={styles.card}
-            onPress={() => handleQuickTap(fav)}
-          >
-            <Text style={styles.cardIcon}>{fav.emoji || (fav.type === 'alcohol' ? '🍺' : '🍃')}</Text>
-            <Text style={styles.cardTitle}>{fav.name}</Text>
-          </TouchableOpacity>
-        ))}
+    <>
+      {/* Main Quick Entry Modal */}
+      <Modal visible={isQuickEntryVisible} transparent animationType="slide">
+        <View style={styles.modalBg}>
+          <View style={styles.modalCard}>
+            <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16}}>
+              <Text style={styles.title}>Quick Entry</Text>
+              <TouchableOpacity onPress={() => setQuickEntryVisible(false)}>
+                <Text style={{color: colors.textSecondary, fontSize: 24}}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.scroll}>
+              {favorites.map((fav) => (
+                <TouchableOpacity
+                  key={fav.id}
+                  style={styles.card}
+                  onPress={() => {
+                    handleQuickTap(fav);
+                    setQuickEntryVisible(false);
+                  }}
+                >
+                  <View style={{ marginBottom: 8 }}>
+                    <EntryIcon iconString={fav.emoji} size={32} color={colors.text} />
+                  </View>
+                  <Text style={styles.cardTitle}>{fav.name}</Text>
+                </TouchableOpacity>
+              ))}
 
-        <TouchableOpacity style={[styles.card, styles.addCard]} onPress={() => setModalVisible(true)}>
-          <Text style={styles.addIcon}>+</Text>
-          <Text style={styles.cardTitle}>Custom</Text>
-        </TouchableOpacity>
-      </ScrollView>
+              <TouchableOpacity style={[styles.card, styles.addCard]} onPress={() => setModalVisible(true)}>
+                <Text style={styles.addIcon}>+</Text>
+                <Text style={styles.cardTitle}>Custom</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
       {/* Check-In Modal */}
       <Modal visible={checkInVisible} transparent animationType="fade">
@@ -230,48 +277,50 @@ export default function QuickEntry() {
                 </TouchableOpacity>
               </View>
 
+              <Text style={styles.inputLabel}>Presets</Text>
+              
               {customType === 'alcohol' ? (
                 <View style={styles.presetsRow}>
-                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('alcohol', 'Beer', '🍺', '12', '5', '45')}>
-                    <Text style={styles.presetEmoji}>🍺</Text>
+                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('alcohol', 'Beer', 'Ionicons:beer-outline', '12', '5', '45')}>
+                    <View style={styles.presetEmoji}><EntryIcon iconString="Ionicons:beer-outline" size={24} color={colors.text} /></View>
                     <Text style={styles.presetText}>Beer</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('alcohol', 'Wine', '🍷', '5', '12', '45')}>
-                    <Text style={styles.presetEmoji}>🍷</Text>
+                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('alcohol', 'Wine', 'Ionicons:wine', '5', '12', '45')}>
+                    <View style={styles.presetEmoji}><EntryIcon iconString="Ionicons:wine" size={24} color={colors.text} /></View>
                     <Text style={styles.presetText}>Wine</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('alcohol', 'Mixed Drink', '🍹', '8', '10', '45')}>
-                    <Text style={styles.presetEmoji}>🍹</Text>
+                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('alcohol', 'Mixed Drink', 'FontAwesome5:cocktail', '8', '10', '45')}>
+                    <View style={styles.presetEmoji}><EntryIcon iconString="FontAwesome5:cocktail" size={24} color={colors.text} /></View>
                     <Text style={styles.presetText}>Mixed</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('alcohol', 'Shot', '🥃', '1.5', '40', '0')}>
-                    <Text style={styles.presetEmoji}>🥃</Text>
+                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('alcohol', 'Shot', 'FontAwesome5:glass-whiskey', '1.5', '40', '0')}>
+                    <View style={styles.presetEmoji}><EntryIcon iconString="FontAwesome5:glass-whiskey" size={24} color={colors.text} /></View>
                     <Text style={styles.presetText}>Shot</Text>
                   </TouchableOpacity>
                 </View>
               ) : (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginBottom: 16}}>
-                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('thc', 'Gummy (10mg)', '🍬', '10', '20', '0')}>
-                    <Text style={styles.presetEmoji}>🍬</Text>
+                <View style={styles.presetsRow}>
+                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('thc', 'Gummy (10mg)', 'FontAwesome5:cookie-bite', '10', '20', '0')}>
+                    <View style={styles.presetEmoji}><EntryIcon iconString="FontAwesome5:cookie-bite" size={24} color={colors.text} /></View>
                     <Text style={styles.presetText}>10mg</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('thc', 'Gummy (5mg)', '🍬', '5', '10', '0')}>
-                    <Text style={styles.presetEmoji}>🍬</Text>
+                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('thc', 'Gummy (5mg)', 'FontAwesome5:cookie-bite', '5', '10', '0')}>
+                    <View style={styles.presetEmoji}><EntryIcon iconString="FontAwesome5:cookie-bite" size={24} color={colors.text} /></View>
                     <Text style={styles.presetText}>5mg</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('thc', 'Gummy (2.5mg)', '🍬', '2.5', '5', '0')}>
-                    <Text style={styles.presetEmoji}>🍬</Text>
+                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('thc', 'Gummy (2.5mg)', 'FontAwesome5:cookie-bite', '2.5', '5', '0')}>
+                    <View style={styles.presetEmoji}><EntryIcon iconString="FontAwesome5:cookie-bite" size={24} color={colors.text} /></View>
                     <Text style={styles.presetText}>2.5mg</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('thc', 'Puff (2mg)', '🌿', '2', '0', '0')}>
-                    <Text style={styles.presetEmoji}>🌿</Text>
+                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('thc', 'Puff (2mg)', 'FontAwesome5:wind', '2', '0', '0')}>
+                    <View style={styles.presetEmoji}><EntryIcon iconString="FontAwesome5:wind" size={24} color={colors.text} /></View>
                     <Text style={styles.presetText}>Puff</Text>
                   </TouchableOpacity>
-                </ScrollView>
+                </View>
               )}
 
               <View style={styles.inputRow}>
-                <View style={{flex: 1, marginRight: 8}}>
+                <View style={{flex: 1}}>
                   <Text style={styles.inputLabel}>Name</Text>
                   <TextInput
                     style={styles.input}
@@ -281,18 +330,20 @@ export default function QuickEntry() {
                     onChangeText={setCustomName}
                   />
                 </View>
-                <View style={{width: 60}}>
-                  <Text style={styles.inputLabel}>Emoji</Text>
-                  <TextInput
-                    style={[styles.input, { textAlign: 'center' }]}
-                    placeholder="Emoji"
-                    placeholderTextColor={colors.textSecondary}
-                    value={customEmoji}
-                    onChangeText={setCustomEmoji}
-                    maxLength={2}
-                  />
-                </View>
               </View>
+
+              <Text style={styles.inputLabel}>Select Icon</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginBottom: 16}}>
+                {(customType === 'alcohol' ? ALCOHOL_ICONS : THC_ICONS).map(icon => (
+                  <TouchableOpacity
+                    key={icon}
+                    style={[styles.iconPickerBtn, customEmoji === icon && styles.iconPickerBtnActive]}
+                    onPress={() => setCustomEmoji(icon)}
+                  >
+                    <EntryIcon iconString={icon} size={24} color={customEmoji === icon ? colors.background : colors.text} />
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
 
               {customType === 'alcohol' ? (
                 <>
@@ -403,7 +454,7 @@ export default function QuickEntry() {
           </ScrollView>
         </View>
       </Modal>
-    </View>
+    </>
   );
 }
 
@@ -414,11 +465,8 @@ const styles = StyleSheet.create({
   title: {
     ...typography.h2,
     color: colors.text,
-    marginBottom: 12,
-    paddingHorizontal: 24,
   },
   scroll: {
-    paddingLeft: 24,
   },
   card: {
     backgroundColor: colors.surface,
@@ -500,7 +548,8 @@ const styles = StyleSheet.create({
   },
   presetsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
+    gap: 12,
     marginBottom: 16,
   },
   presetBtn: {
@@ -509,11 +558,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 12,
     alignItems: 'center',
-    marginRight: 8,
     minWidth: 64,
   },
   presetEmoji: {
-    fontSize: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: 4,
   },
   presetText: {
@@ -530,6 +580,18 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: 4,
     fontWeight: 'bold',
+  },
+  iconPickerBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  iconPickerBtnActive: {
+    backgroundColor: colors.primary,
   },
   input: {
     backgroundColor: colors.surface,

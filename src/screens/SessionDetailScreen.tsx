@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'rea
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppStore, Consumption } from '../store';
 import { colors, typography } from '../theme';
+import EntryIcon from '../components/EntryIcon';
 import BurndownChart from '../components/BurndownChart';
 import EditConsumptionModal from '../components/EditConsumptionModal';
 import { calculateStandardDrinks } from '../utils/mathEngine';
@@ -99,7 +100,9 @@ export default function SessionDetailScreen({ route, navigation }: any) {
         <Text style={styles.logHeader}>Consumption Log</Text>
         {sessionConsumptions.map((c: any) => (
           <View key={c.id} style={styles.logItem}>
-            <Text style={styles.logIcon}>{c.emoji}</Text>
+            <View style={{ marginRight: 12 }}>
+              <EntryIcon iconString={c.emoji} size={24} color={colors.textSecondary} />
+            </View>
             <View style={styles.logDetails}>
               <Text style={styles.logName}>{c.name}</Text>
               <Text style={styles.logTime}>

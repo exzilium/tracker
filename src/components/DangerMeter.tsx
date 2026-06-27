@@ -27,7 +27,7 @@ export default function DangerMeter({
   const maxTHC = profile.maxTHC || 10;
 
   const { dangerPercent, warningMsg } = calculateDangerLevel(
-    currentBAC, maxBAC, peakTHC, maxTHC, currentMood, currentHunger
+    currentBAC, maxBAC, currentTHC, maxTHC, currentMood, currentHunger
   );
 
   let statusColor = colors.success;
@@ -68,8 +68,6 @@ export default function DangerMeter({
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Danger Level</Text>
-
       <View style={styles.statusBox}>
         <View style={styles.liveTimeBox}>
           <Text style={[styles.liveTimeText, { color: statusColor }]}>

@@ -7,7 +7,7 @@ import { colors, typography } from '../theme';
 
 const { width } = Dimensions.get('window');
 const CHART_WIDTH = width;
-const CHART_HEIGHT = 150;
+const CHART_HEIGHT = 220;
 
 const formatTime = (ts: number, showMins = false) => {
   const d = new Date(ts);
@@ -32,7 +32,20 @@ export default function BurndownChart({ consumptionsOverride, startTimeOverride 
   const profile = useAppStore(state => state.profile);
   
   const consumptions = consumptionsOverride || storeConsumptions;
-  const chartStartTime = startTimeOverride || Date.now();
+  const chartStartTime = useMemo(() => {
+    if (startTimeOverride) return startTimeOverride;
+    
+    // Find the oldest active log to use as session start
+    const activeLogs = storeConsumptions.filter(c => Date.now() - c.timestamp < 12 * 60 * 60 * 1000);
+    if (activeLogs.length > 0) {
+      const oldest = Math.min(...activeLogs.map(c => c.timestamp));
+      // Give it 30 mins padding before the first log
+      return oldest - (30 * 60 * 1000);
+    }
+    
+    // No active session, default to 1 hour ago
+    return Date.now() - (60 * 60 * 1000);
+  }, [startTimeOverride, storeConsumptions]);
 
   const [timeWindowHours, setTimeWindowHours] = useState(8);
 
@@ -79,6 +92,12 @@ export default function BurndownChart({ consumptionsOverride, startTimeOverride 
 
   const limitBacY = Math.max(0, CHART_HEIGHT - (maxBAC / highestBAC) * CHART_HEIGHT);
   const limitThcY = Math.max(0, CHART_HEIGHT - (maxTHC / highestTHC) * CHART_HEIGHT);
+  const midBacY = getBacY(highestBAC / 2);
+  const midThcY = getThcY(highestTHC / 2);
+
+  const realNow = Date.now();
+  const currentDiffMins = (realNow - now) / 60000;
+  const nowX = (currentDiffMins / 5) * stepX;
 
   // Generate Grid Lines
   const gridLines = [];
@@ -197,19 +216,44 @@ export default function BurndownChart({ consumptionsOverride, startTimeOverride 
           <Path d={`${bacPathD} L${CHART_WIDTH},${CHART_HEIGHT} L0,${CHART_HEIGHT} Z`} fill="url(#gradBac)" />
           <Path d={bacPathD} fill="none" stroke={colors.primary} strokeWidth={3} />
           <Path d={`M0,${limitBacY} L${CHART_WIDTH},${limitBacY}`} fill="none" stroke={colors.primary} strokeWidth={1} strokeDasharray="5,5" opacity={0.5} />
+          
           <SvgText x={10} y={Math.max(10, limitBacY - 5)} fill={colors.primary} fontSize="10" opacity={0.8} fontWeight="bold">
-            MAX {maxBAC} BAC
+            LIMIT {maxBAC.toFixed(2)}
           </SvgText>
+          <SvgText x={10} y={midBacY} fill={colors.primary} fontSize="10" opacity={0.5}>
+            {(highestBAC / 2).toFixed(2)}
+          </SvgText>
+          <SvgText x={10} y={CHART_HEIGHT - 15} fill={colors.primary} fontSize="10" opacity={0.5}>0</SvgText>
           
           {/* THC Curve */}
           <Path d={`${thcPathD} L${CHART_WIDTH},${CHART_HEIGHT} L0,${CHART_HEIGHT} Z`} fill="url(#gradThc)" />
           <Path d={thcPathD} fill="none" stroke={colors.success} strokeWidth={3} />
           <Path d={`M0,${limitThcY} L${CHART_WIDTH},${limitThcY}`} fill="none" stroke={colors.success} strokeWidth={1} strokeDasharray="5,5" opacity={0.5} />
+          
           <SvgText x={CHART_WIDTH - 10} y={Math.max(10, limitThcY - 5)} fill={colors.success} fontSize="10" textAnchor="end" opacity={0.8} fontWeight="bold">
-            MAX {maxTHC}mg
+            LIMIT {maxTHC.toFixed(1)}mg
           </SvgText>
+          <SvgText x={CHART_WIDTH - 10} y={midThcY} fill={colors.success} fontSize="10" textAnchor="end" opacity={0.5}>
+            {(highestTHC / 2).toFixed(1)}mg
+          </SvgText>
+          <SvgText x={CHART_WIDTH - 10} y={CHART_HEIGHT - 15} fill={colors.success} fontSize="10" textAnchor="end" opacity={0.5}>0</SvgText>
           
           {labels}
+
+          {/* NOW Line */}
+          {nowX >= 0 && nowX <= CHART_WIDTH && (
+            <>
+              <SvgLine 
+                x1={nowX} y1={0} x2={nowX} y2={CHART_HEIGHT}
+                stroke={colors.textSecondary}
+                strokeWidth={1.5}
+                strokeDasharray="4,4"
+              />
+              <SvgText x={nowX + 4} y={15} fill={colors.textSecondary} fontSize="10" opacity={0.8} fontWeight="bold">
+                NOW
+              </SvgText>
+            </>
+          )}
 
           {/* Scrubber Line */}
           {scrubIdx !== null && (

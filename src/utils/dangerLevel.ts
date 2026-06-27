@@ -25,7 +25,7 @@ const getRandomWarning = (arr: string[]) => {
 export const calculateDangerLevel = (
   currentBAC: number,
   maxBAC: number,
-  peakTHC: number, // mg
+  currentTHC: number, // mg
   maxTHC: number,  // mg
   mood: number,    // 1-5
   hunger: number   // 1-5
@@ -33,7 +33,7 @@ export const calculateDangerLevel = (
   
   // Base danger is the highest percentage relative to either limit
   const bacDanger = maxBAC > 0 ? (currentBAC / maxBAC) * 100 : 0;
-  const thcDanger = maxTHC > 0 ? (peakTHC / maxTHC) * 100 : 0;
+  const thcDanger = maxTHC > 0 ? (currentTHC / maxTHC) * 100 : 0;
   
   let baseDanger = Math.max(bacDanger, thcDanger);
 

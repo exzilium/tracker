@@ -5,7 +5,7 @@ import { useAppStore } from '../store';
 import { colors, typography } from '../theme';
 
 const MOOD_LABELS = ['Horrible', 'Bad', 'Normal', 'Good', "I'm Rollin'"];
-const HUNGER_LABELS = ['No mas!', 'Not hungry', 'Snacky', 'Hungry', 'Starving!'];
+const HUNGER_LABELS = ['No mas!', 'Full', 'Not hungry', 'Hungry', 'Starving!'];
 
 export default function SubjectiveState() {
   const { currentMood, currentHunger, setCurrentState } = useAppStore();

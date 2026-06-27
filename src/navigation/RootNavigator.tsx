@@ -3,6 +3,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppStore } from '../store';
 import OnboardingScreen from '../screens/OnboardingScreen';
 import DashboardScreen from '../screens/DashboardScreen';
@@ -22,6 +23,8 @@ const DummyComponent = () => null;
 
 function MainTabNavigator() {
   const setQuickEntryVisible = useAppStore(state => state.setQuickEntryVisible);
+  const insets = useSafeAreaInsets();
+  
   return (
     <Tab.Navigator
       screenOptions={{
@@ -30,6 +33,13 @@ function MainTabNavigator() {
           backgroundColor: colors.surface,
           borderTopWidth: 0,
           elevation: 0,
+          height: 64 + insets.bottom,
+          paddingBottom: insets.bottom ? insets.bottom : 12,
+          paddingTop: 12,
+        },
+        tabBarLabelStyle: {
+          marginTop: 4,
+          fontSize: 11,
         },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textSecondary,
@@ -49,8 +59,8 @@ function MainTabNavigator() {
         name="Add" 
         component={DummyComponent} 
         options={{
-          tabBarLabel: 'Add',
-          tabBarIcon: ({ color }) => <Feather name="plus-circle" size={42} color={color} style={{ marginTop: -8 }} />
+          tabBarShowLabel: false,
+          tabBarIcon: ({ color }) => <Feather name="plus-circle" size={32} color={color} />
         }}
         listeners={{
           tabPress: (e) => {

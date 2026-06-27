@@ -6,8 +6,8 @@ import { scheduleHydrationReminder } from '../utils/notifications';
 
 const CHECK_IN_COOLDOWN_MS = 2 * 60 * 60 * 1000; // 2 hours
 
-const MOOD_LABELS = ['1 - Horrible', '2 - Bad', '3 - Normal', '4 - Good', "5 - I'm Rollin'"];
-const HUNGER_LABELS = ['1 - No mas!', '2 - Not hungry at all', '3 - Snacky', '4 - Hungry', '5 - Starving!'];
+const MOOD_LABELS = ['Horrible', 'Bad', 'Normal', 'Good', "I'm Rollin'"];
+const HUNGER_LABELS = ['No mas!', 'Full', 'Not hungry', 'Hungry', 'Starving!'];
 
 const ALCOHOL_ICONS = [
   'Ionicons:beer-outline',

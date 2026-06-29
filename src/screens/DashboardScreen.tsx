@@ -34,6 +34,13 @@ export default function DashboardScreen({ navigation }: any) {
 
   const currentSessionLogs = useMemo(() => {
     const sorted = [...consumptions].sort((a, b) => b.timestamp - a.timestamp);
+    if (sorted.length === 0) return [];
+
+    // Failsafe: if the most recent log is older than 24 hours, the session is over regardless
+    if (Date.now() - sorted[0].timestamp > 24 * 60 * 60 * 1000) {
+      return [];
+    }
+
     const session = [];
     for (let i = 0; i < sorted.length; i++) {
       if (i > 0) {
@@ -42,8 +49,15 @@ export default function DashboardScreen({ navigation }: any) {
       }
       session.push(sorted[i]);
     }
+
+    // Biological Reset: Session is over when active compounds both reach 0
+    const { currentBAC, currentTHC } = getCurrentLevels(session, profile);
+    if (currentBAC <= 0 && currentTHC <= 0) {
+      return [];
+    }
+
     return session;
-  }, [consumptions]);
+  }, [consumptions, profile]);
 
   // Recalculate levels whenever current session logs change
   useEffect(() => {

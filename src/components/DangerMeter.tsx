@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useAppStore } from '../store';
 import { colors, typography } from '../theme';
@@ -31,9 +31,9 @@ export default function DangerMeter({
   const maxBAC = profile.maxBAC || 0.08;
   const maxTHC = profile.maxTHC || 10;
 
-  const { dangerPercent, warningMsg } = calculateDangerLevel(
+  const { dangerPercent, warningMsg } = useMemo(() => calculateDangerLevel(
     currentBAC, maxBAC, currentTHC, maxTHC, currentMood, currentHunger, currentAnxiety
-  );
+  ), [currentBAC, maxBAC, currentTHC, maxTHC, currentMood, currentHunger, currentAnxiety]);
 
   let statusColor = colors.success;
   if (dangerPercent >= 100) {

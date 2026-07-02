@@ -80,14 +80,26 @@ export default function DashboardScreen({ navigation }: any) {
   }, [currentSessionLogs, profile]);
 
   const handleDelete = (id: string, name: string) => {
-    Alert.alert(
-      "Remove Log",
-      `Are you sure you want to delete ${name}?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Delete", style: "destructive", onPress: () => removeConsumption(id) }
-      ]
-    );
+    if (Platform.OS === 'web') {
+      if (window.confirm(`Are you sure you want to delete ${name}?`)) {
+        removeConsumption(id);
+      }
+    } else {
+      Alert.alert(
+        "Remove Log",
+        `Are you sure you want to delete ${name}?`,
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Delete", style: "destructive", onPress: () => removeConsumption(id) }
+        ]
+      );
+    }
+  };
+
+  const handleMarkFinished = (item: Consumption) => {
+    const elapsedMins = (Date.now() - item.timestamp) / 60000;
+    const { updateConsumption } = useAppStore.getState();
+    updateConsumption(item.id, { durationMins: Math.max(0, Math.floor(elapsedMins)) });
   };
 
   const confirmEndSession = () => {
@@ -151,25 +163,40 @@ export default function DashboardScreen({ navigation }: any) {
                 <Text style={styles.emptyText}>Nothing logged yet today.</Text>
               ) : (
                 <View>
-                  {currentSessionLogs.map(item => (
-                    <View key={item.id} style={styles.logRow}>
-                      <View style={{ marginRight: 12 }}>
-                        <EntryIcon iconString={item.emoji || (item.type === 'alcohol' ? '🍺' : '🍃')} size={24} color={colors.textSecondary} />
+                  {currentSessionLogs.map(item => {
+                    const timeStr = new Date(item.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+                    const isFinished = Date.now() >= item.timestamp + ((item.durationMins || 0) * 60000);
+
+                    return (
+                      <View key={item.id} style={styles.logRow}>
+                        <View style={{ marginRight: 12 }}>
+                          <EntryIcon iconString={item.emoji || (item.type === 'alcohol' ? '🍺' : '🍃')} size={24} color={colors.textSecondary} />
+                        </View>
+                        <View style={styles.logInfo}>
+                          <Text style={styles.logName}>{item.name}</Text>
+                          <Text style={styles.logTime}>{timeStr} ({timeAgo(item.timestamp)})</Text>
+                          {!isFinished && (
+                            <View style={styles.inProgressBadge}>
+                              <Text style={styles.inProgressText}>● In Progress</Text>
+                            </View>
+                          )}
+                        </View>
+                        <View style={styles.actionsRow}>
+                          {!isFinished && (
+                            <TouchableOpacity style={styles.finishBtn} onPress={() => handleMarkFinished(item)}>
+                              <Text style={styles.finishBtnText}>✓</Text>
+                            </TouchableOpacity>
+                          )}
+                          <TouchableOpacity style={styles.actionBtn} onPress={() => setEditingLog(item)}>
+                            <Text style={styles.actionBtnText}>✎</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity style={[styles.actionBtn, styles.deleteBtn]} onPress={() => handleDelete(item.id, item.name)}>
+                            <Text style={styles.deleteBtnText}>✕</Text>
+                          </TouchableOpacity>
+                        </View>
                       </View>
-                      <View style={styles.logInfo}>
-                        <Text style={styles.logName}>{item.name}</Text>
-                        <Text style={styles.logTime}>{timeAgo(item.timestamp)}</Text>
-                      </View>
-                      <View style={styles.actionsRow}>
-                        <TouchableOpacity style={styles.actionBtn} onPress={() => setEditingLog(item)}>
-                          <Text style={styles.actionBtnText}>✎</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={[styles.actionBtn, styles.deleteBtn]} onPress={() => handleDelete(item.id, item.name)}>
-                          <Text style={styles.deleteBtnText}>✕</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  ))}
+                    );
+                  })}
                 </View>
               )}
             </View>
@@ -332,5 +359,27 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: colors.textSecondary,
     fontSize: 14,
+  },
+  inProgressBadge: {
+    marginTop: 4,
+  },
+  inProgressText: {
+    color: colors.success,
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  finishBtn: {
+    padding: 8,
+    marginLeft: 8,
+    backgroundColor: 'rgba(3, 218, 198, 0.2)',
+    borderRadius: 16,
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  finishBtnText: {
+    color: colors.success,
+    fontWeight: 'bold',
   }
 });

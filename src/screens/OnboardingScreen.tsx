@@ -84,9 +84,9 @@ export default function OnboardingScreen() {
             placeholderTextColor={colors.textSecondary}
           />
         ) : (
-          <View style={{ flexDirection: 'row', gap: 12 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
             <TextInput
-              style={[styles.input, { flex: 1 }]}
+              style={[styles.input, { width: '48%' }]}
               keyboardType="numeric"
               value={heightFtStr}
               onChangeText={setHeightFtStr}
@@ -94,7 +94,7 @@ export default function OnboardingScreen() {
               placeholderTextColor={colors.textSecondary}
             />
             <TextInput
-              style={[styles.input, { flex: 1 }]}
+              style={[styles.input, { width: '48%' }]}
               keyboardType="numeric"
               value={heightInStr}
               onChangeText={setHeightInStr}

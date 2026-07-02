@@ -135,6 +135,7 @@ export default function BurndownChart({ consumptionsOverride, startTimeOverride 
           y={CHART_HEIGHT - 10}
           fill={colors.textSecondary}
           fontSize="10"
+          fontFamily="System"
           textAnchor="middle"
         >
           {formatTime(tickTime, false)}
@@ -217,26 +218,26 @@ export default function BurndownChart({ consumptionsOverride, startTimeOverride 
           <Path d={bacPathD} fill="none" stroke={colors.primary} strokeWidth={3} />
           <Path d={`M0,${limitBacY} L${CHART_WIDTH},${limitBacY}`} fill="none" stroke={colors.primary} strokeWidth={1} strokeDasharray="5,5" opacity={0.5} />
           
-          <SvgText x={10} y={Math.max(10, limitBacY - 5)} fill={colors.primary} fontSize="10" opacity={0.8} fontWeight="bold">
+          <SvgText x={10} y={Math.max(10, limitBacY - 5)} fill={colors.primary} fontSize="10" fontFamily="System" opacity={0.8} fontWeight="bold">
             LIMIT {maxBAC.toFixed(2)}
           </SvgText>
-          <SvgText x={10} y={midBacY} fill={colors.primary} fontSize="10" opacity={0.5}>
+          <SvgText x={10} y={midBacY} fill={colors.primary} fontSize="10" fontFamily="System" opacity={0.5}>
             {(highestBAC / 2).toFixed(2)}
           </SvgText>
-          <SvgText x={10} y={CHART_HEIGHT - 15} fill={colors.primary} fontSize="10" opacity={0.5}>0</SvgText>
+          <SvgText x={10} y={CHART_HEIGHT - 15} fill={colors.primary} fontSize="10" fontFamily="System" opacity={0.5}>0</SvgText>
           
           {/* THC Curve */}
           <Path d={`${thcPathD} L${CHART_WIDTH},${CHART_HEIGHT} L0,${CHART_HEIGHT} Z`} fill="url(#gradThc)" />
           <Path d={thcPathD} fill="none" stroke={colors.success} strokeWidth={3} />
           <Path d={`M0,${limitThcY} L${CHART_WIDTH},${limitThcY}`} fill="none" stroke={colors.success} strokeWidth={1} strokeDasharray="5,5" opacity={0.5} />
           
-          <SvgText x={CHART_WIDTH - 10} y={Math.max(10, limitThcY - 5)} fill={colors.success} fontSize="10" textAnchor="end" opacity={0.8} fontWeight="bold">
+          <SvgText x={CHART_WIDTH - 10} y={Math.max(10, limitThcY - 5)} fill={colors.success} fontSize="10" fontFamily="System" textAnchor="end" opacity={0.8} fontWeight="bold">
             LIMIT {maxTHC.toFixed(1)}mg
           </SvgText>
-          <SvgText x={CHART_WIDTH - 10} y={midThcY} fill={colors.success} fontSize="10" textAnchor="end" opacity={0.5}>
+          <SvgText x={CHART_WIDTH - 10} y={midThcY} fill={colors.success} fontSize="10" fontFamily="System" textAnchor="end" opacity={0.5}>
             {(highestTHC / 2).toFixed(1)}mg
           </SvgText>
-          <SvgText x={CHART_WIDTH - 10} y={CHART_HEIGHT - 15} fill={colors.success} fontSize="10" textAnchor="end" opacity={0.5}>0</SvgText>
+          <SvgText x={CHART_WIDTH - 10} y={CHART_HEIGHT - 15} fill={colors.success} fontSize="10" fontFamily="System" textAnchor="end" opacity={0.5}>0</SvgText>
           
           {labels}
 
@@ -249,7 +250,15 @@ export default function BurndownChart({ consumptionsOverride, startTimeOverride 
                 strokeWidth={1.5}
                 strokeDasharray="4,4"
               />
-              <SvgText x={nowX + 4} y={15} fill={colors.textSecondary} fontSize="10" opacity={0.8} fontWeight="bold">
+              <SvgText 
+                x={nowX < CHART_WIDTH - 30 ? nowX + 4 : nowX - 30} 
+                y={15} 
+                fill={colors.textSecondary} 
+                fontSize="10" 
+                fontFamily="System"
+                opacity={0.8} 
+                fontWeight="bold"
+              >
                 NOW
               </SvgText>
             </>

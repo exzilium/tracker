@@ -2,11 +2,14 @@ import React from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import RootNavigator from './src/navigation/RootNavigator';
 import { useFonts } from 'expo-font';
+import { Feather, Ionicons, FontAwesome5, MaterialCommunityIcons } from '@expo/vector-icons';
 
 export default function App() {
   const [fontsLoaded] = useFonts({
-    Feather: require('./assets/fonts/Feather.ttf'),
-    Ionicons: require('./assets/fonts/Ionicons.ttf'),
+    ...Feather.font,
+    ...Ionicons.font,
+    ...FontAwesome5.font,
+    ...MaterialCommunityIcons.font,
   });
 
   if (!fontsLoaded) {

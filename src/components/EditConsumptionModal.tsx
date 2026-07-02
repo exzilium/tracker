@@ -42,6 +42,7 @@ export default function EditConsumptionModal({ visible, consumption, onClose }: 
   const [editAbv, setEditAbv] = useState('');
   const [editDuration, setEditDuration] = useState('');
   const [editCalories, setEditCalories] = useState('');
+  const [editTimestamp, setEditTimestamp] = useState<number>(Date.now());
 
   useEffect(() => {
     if (consumption) {
@@ -49,6 +50,7 @@ export default function EditConsumptionModal({ visible, consumption, onClose }: 
       setEditEmoji(consumption.emoji || (consumption.type === 'alcohol' ? '🍺' : '🍃'));
       setEditDuration((consumption.durationMins || 0).toString());
       setEditCalories(consumption.calories ? consumption.calories.toString() : '');
+      setEditTimestamp(consumption.timestamp);
       
       if (consumption.type === 'alcohol') {
         setEditAmount(consumption.volumeOz ? consumption.volumeOz.toString() : '');
@@ -68,6 +70,7 @@ export default function EditConsumptionModal({ visible, consumption, onClose }: 
       emoji: editEmoji,
       durationMins: consumption.type === 'alcohol' ? (parseFloat(editDuration) || 0) : 0,
       calories: parseFloat(editCalories) || undefined,
+      timestamp: editTimestamp,
     };
 
     if (consumption.type === 'alcohol') {
@@ -100,6 +103,19 @@ export default function EditConsumptionModal({ visible, consumption, onClose }: 
                 onChangeText={setEditName}
               />
             </View>
+          </View>
+
+          <Text style={styles.inputLabel}>Time Logged</Text>
+          <View style={styles.timeShiftRow}>
+            <TouchableOpacity style={styles.shiftBtn} onPress={() => setEditTimestamp(editTimestamp - (15 * 60000))}>
+              <Text style={styles.shiftBtnText}>-15m</Text>
+            </TouchableOpacity>
+            <Text style={styles.timeText}>
+              {new Date(editTimestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+            </Text>
+            <TouchableOpacity style={styles.shiftBtn} onPress={() => setEditTimestamp(editTimestamp + (15 * 60000))}>
+              <Text style={styles.shiftBtnText}>+15m</Text>
+            </TouchableOpacity>
           </View>
 
           <Text style={styles.inputLabel}>Select Icon</Text>
@@ -265,6 +281,30 @@ const styles = StyleSheet.create({
   },
   saveBtnText: {
     color: colors.background,
+    fontWeight: 'bold',
+  },
+  timeShiftRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderRadius: 8,
+    padding: 8,
+    marginBottom: 24,
+  },
+  shiftBtn: {
+    backgroundColor: colors.surface,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  shiftBtnText: {
+    color: colors.primary,
+    fontWeight: 'bold',
+  },
+  timeText: {
+    color: colors.text,
+    fontSize: 16,
     fontWeight: 'bold',
   }
 });

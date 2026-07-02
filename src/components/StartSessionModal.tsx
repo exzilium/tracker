@@ -40,6 +40,11 @@ export default function StartSessionModal() {
     setStartSessionVisible(false);
   };
 
+  const handleCustomStart = () => {
+    handleStart(); // start session with any selected favorites
+    useAppStore.getState().setQuickEntryVisible(true); // then pop open the global custom item creator
+  };
+
   return (
     <Modal visible={isStartSessionVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setStartSessionVisible(false)}>
       <SafeAreaView style={styles.container}>
@@ -90,6 +95,11 @@ export default function StartSessionModal() {
               );
             })}
           </View>
+          
+          <TouchableOpacity style={styles.customBtn} onPress={handleCustomStart}>
+            <Feather name="plus-circle" size={20} color={colors.primary} style={{ marginRight: 8 }} />
+            <Text style={styles.customBtnText}>Create Custom Item...</Text>
+          </TouchableOpacity>
         </ScrollView>
 
         <View style={styles.footer}>
@@ -208,4 +218,20 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 18,
   },
+  customBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    marginTop: 16,
+    backgroundColor: 'rgba(187, 134, 252, 0.1)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(187, 134, 252, 0.2)',
+  },
+  customBtnText: {
+    color: colors.primary,
+    ...typography.body,
+    fontWeight: 'bold',
+  }
 });

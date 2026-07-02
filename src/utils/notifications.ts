@@ -6,7 +6,7 @@ const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreCl
 
 let Notifications: any = null;
 
-if (!isExpoGo) {
+if (!isExpoGo && Platform.OS !== 'web') {
   try {
     Notifications = require('expo-notifications');
     Notifications.setNotificationHandler({

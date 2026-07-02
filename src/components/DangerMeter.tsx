@@ -21,13 +21,18 @@ export default function DangerMeter({
   peakTHC,
   peakTHCTime,
 }: Props) {
-  const { profile, currentMood, currentHunger } = useAppStore();
+  const { profile, activeSessionId, sessions } = useAppStore();
+  
+  const activeSession = sessions.find(s => s.id === activeSessionId);
+  const currentMood = activeSession?.mood || 3;
+  const currentHunger = activeSession?.hunger || 3;
+  const currentAnxiety = activeSession?.anxiety || 3;
 
   const maxBAC = profile.maxBAC || 0.08;
   const maxTHC = profile.maxTHC || 10;
 
   const { dangerPercent, warningMsg } = calculateDangerLevel(
-    currentBAC, maxBAC, currentTHC, maxTHC, currentMood, currentHunger
+    currentBAC, maxBAC, currentTHC, maxTHC, currentMood, currentHunger, currentAnxiety
   );
 
   let statusColor = colors.success;

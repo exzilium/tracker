@@ -5,21 +5,7 @@ export const getCurrentLevels = (consumptions: Consumption[], profile: UserProfi
   const now = nowOverride || Date.now();
   let totalBAC = 0;
   let activeTHC = 0;
-  let peakTHC = 0;
-
-  // Simulate next 8 hours (480 mins) in 5-minute increments to find future peak THC
-  for (let m = 0; m <= 480; m += 5) {
-    let simulatedTHC = 0;
-    consumptions.forEach((c) => {
-      const minutesElapsed = ((now + (m * 60000)) - c.timestamp) / 60000;
-      if (c.type === 'thc' && c.method && c.mg && minutesElapsed >= 0) {
-        simulatedTHC += c.mg * calculateTHCEffect(c.method, minutesElapsed);
-      }
-    });
-    if (simulatedTHC > peakTHC) {
-      peakTHC = simulatedTHC;
-    }
-  }
+  let peakTHC = 0; // Legacy return signature compliance, actual peak calculation moved to getPeaks
 
   consumptions.forEach((c) => {
     const hoursElapsed = (now - c.timestamp) / (1000 * 60 * 60);
@@ -36,7 +22,8 @@ export const getCurrentLevels = (consumptions: Consumption[], profile: UserProfi
     }
   });
 
-  peakTHC = Math.max(peakTHC, activeTHC);
+  // Note: peakTHC is no longer actively simulated here to save O(N^2) rendering costs on graphs.
+  // Charts should call getPeaks() independently.
 
   return { currentBAC: totalBAC, currentTHC: activeTHC, peakTHC };
 };

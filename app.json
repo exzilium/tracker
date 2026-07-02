@@ -23,6 +23,9 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
+    "experiments": {
+      "baseUrl": "/tracker"
+    },
     "plugins": [
       [
         "react-native-google-mobile-ads",
@@ -31,7 +34,8 @@
           "iosAppId": "ca-app-pub-3940256099942544~1458002511"
         }
       ],
-      "react-native-iap"
+      "react-native-iap",
+      "expo-font"
     ]
   }
 }

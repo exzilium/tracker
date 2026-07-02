@@ -13,6 +13,7 @@ import ManageFavoritesScreen from '../screens/ManageFavoritesScreen';
 import DonationScreen from '../screens/DonationScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import QuickEntry from '../components/QuickEntry';
+import StartSessionModal from '../components/StartSessionModal';
 import { colors } from '../theme';
 
 const Stack = createNativeStackNavigator();
@@ -22,7 +23,7 @@ const Tab = createBottomTabNavigator();
 const DummyComponent = () => null;
 
 function MainTabNavigator() {
-  const setQuickEntryVisible = useAppStore(state => state.setQuickEntryVisible);
+  const { setQuickEntryVisible, setStartSessionVisible, activeSessionId } = useAppStore();
   const insets = useSafeAreaInsets();
   
   return (
@@ -65,7 +66,11 @@ function MainTabNavigator() {
         listeners={{
           tabPress: (e) => {
             e.preventDefault();
-            setQuickEntryVisible(true);
+            if (activeSessionId) {
+              setQuickEntryVisible(true);
+            } else {
+              setStartSessionVisible(true);
+            }
           },
         }}
       />
@@ -97,7 +102,12 @@ export default function RootNavigator() {
           )}
         </Stack.Navigator>
       </NavigationContainer>
-      {isOnboarded && <QuickEntry />}
+      {isOnboarded && (
+        <>
+          <QuickEntry />
+          <StartSessionModal />
+        </>
+      )}
     </>
   );
 }

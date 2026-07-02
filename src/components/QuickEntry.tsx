@@ -6,9 +6,6 @@ import { scheduleHydrationReminder } from '../utils/notifications';
 
 const CHECK_IN_COOLDOWN_MS = 2 * 60 * 60 * 1000; // 2 hours
 
-const MOOD_LABELS = ['Horrible', 'Bad', 'Normal', 'Good', "I'm Rollin'"];
-const HUNGER_LABELS = ['No mas!', 'Full', 'Not hungry', 'Hungry', 'Starving!'];
-
 const ALCOHOL_ICONS = [
   'Ionicons:beer-outline',
   'Ionicons:wine',
@@ -35,8 +32,7 @@ import EntryIcon from './EntryIcon';
 
 export default function QuickEntry() {
   const { 
-    favorites, addConsumption, addFavorite, lastCheckInTime, 
-    currentMood, currentHunger, setCurrentState,
+    favorites, addConsumption, addFavorite, 
     isQuickEntryVisible, setQuickEntryVisible 
   } = useAppStore();
 
@@ -50,20 +46,6 @@ export default function QuickEntry() {
   const [customCalories, setCustomCalories] = useState('');
   const [customMinutesAgo, setCustomMinutesAgo] = useState('0');
   const [saveFav, setSaveFav] = useState(false);
-
-  // Check-In Modal State
-  const [checkInVisible, setCheckInVisible] = useState(false);
-  const [tempMood, setTempMood] = useState(currentMood);
-  const [tempHunger, setTempHunger] = useState(currentHunger);
-
-  const triggerCheckInIfNeeded = () => {
-    const now = Date.now();
-    if (now - lastCheckInTime > CHECK_IN_COOLDOWN_MS) {
-      setTempMood(currentMood);
-      setTempHunger(currentHunger);
-      setCheckInVisible(true);
-    }
-  };
 
   const handleQuickTap = (fav: FavoriteItem) => {
     addConsumption({
@@ -79,7 +61,6 @@ export default function QuickEntry() {
       timestamp: Date.now(),
     });
     scheduleHydrationReminder();
-    triggerCheckInIfNeeded();
   };
 
   const switchType = (type: ConsumableType) => {
@@ -156,12 +137,6 @@ export default function QuickEntry() {
     setSaveFav(false);
 
     scheduleHydrationReminder();
-    triggerCheckInIfNeeded();
-  };
-
-  const saveCheckIn = () => {
-    setCurrentState(tempMood, tempHunger, true);
-    setCheckInVisible(false);
   };
 
   return (
@@ -198,59 +173,6 @@ export default function QuickEntry() {
                 <Text style={styles.cardTitle}>Custom</Text>
               </TouchableOpacity>
             </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Check-In Modal */}
-      <Modal visible={checkInVisible} transparent animationType="fade">
-        <View style={styles.modalBg}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Log Added!</Text>
-            <Text style={styles.modalSubtitle}>It's been a while. Anything change about your mood or hunger?</Text>
-            
-            <View style={styles.checkInRow}>
-              <Text style={styles.checkInLabel}>Mood (1-5)</Text>
-              <View style={styles.pillGroup}>
-                {[1,2,3,4,5].map(val => (
-                  <View key={`mood-${val}`} style={{alignItems: 'center'}}>
-                    <TouchableOpacity 
-                      style={[styles.pill, tempMood === val && styles.pillActive]}
-                      onPress={() => setTempMood(val)}
-                    >
-                      <Text style={[styles.pillText, tempMood === val && styles.pillTextActive]}>{val}</Text>
-                    </TouchableOpacity>
-                  </View>
-                ))}
-              </View>
-              <Text style={styles.pillDescText}>{MOOD_LABELS[tempMood - 1]}</Text>
-            </View>
-
-            <View style={styles.checkInRow}>
-              <Text style={styles.checkInLabel}>Hunger (1-5)</Text>
-              <View style={styles.pillGroup}>
-                {[1,2,3,4,5].map(val => (
-                  <View key={`hunger-${val}`} style={{alignItems: 'center'}}>
-                    <TouchableOpacity 
-                      style={[styles.pill, tempHunger === val && styles.pillActive]}
-                      onPress={() => setTempHunger(val)}
-                    >
-                      <Text style={[styles.pillText, tempHunger === val && styles.pillTextActive]}>{val}</Text>
-                    </TouchableOpacity>
-                  </View>
-                ))}
-              </View>
-              <Text style={styles.pillDescText}>{HUNGER_LABELS[tempHunger - 1]}</Text>
-            </View>
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setCheckInVisible(false)}>
-                <Text style={styles.cancelBtnText}>Skip</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.saveBtn} onPress={saveCheckIn}>
-                <Text style={styles.saveBtnText}>Save</Text>
-              </TouchableOpacity>
-            </View>
           </View>
         </View>
       </Modal>
@@ -641,45 +563,6 @@ const styles = StyleSheet.create({
   },
   saveBtnText: {
     color: colors.background,
-    fontWeight: 'bold',
-  },
-  checkInRow: {
-    marginBottom: 24,
-  },
-  checkInLabel: {
-    ...typography.caption,
-    color: colors.text,
-    marginBottom: 8,
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  pillGroup: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  pill: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pillActive: {
-    backgroundColor: colors.primary,
-  },
-  pillText: {
-    color: colors.textSecondary,
-    fontWeight: 'bold',
-  },
-  pillTextActive: {
-    color: colors.background,
-  },
-  pillDescText: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    textAlign: 'center',
     fontWeight: 'bold',
   }
 });

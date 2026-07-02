@@ -1,19 +1,31 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Slider from '@react-native-community/slider';
-import { useAppStore } from '../store';
 import { colors, typography } from '../theme';
 
 const MOOD_LABELS = ['Horrible', 'Bad', 'Normal', 'Good', "I'm Rollin'"];
 const HUNGER_LABELS = ['No mas!', 'Full', 'Not hungry', 'Hungry', 'Starving!'];
+const ANXIETY_LABELS = ['Zen', 'Calm', 'Normal', 'High', 'Very High'];
 
-export default function SubjectiveState() {
-  const { currentMood, currentHunger, setCurrentState } = useAppStore();
+interface Props {
+  mood: number;
+  hunger: number;
+  anxiety: number;
+  onMoodChange: (val: number) => void;
+  onHungerChange: (val: number) => void;
+  onAnxietyChange: (val: number) => void;
+}
 
+export default function SubjectiveState({
+  mood,
+  hunger,
+  anxiety,
+  onMoodChange,
+  onHungerChange,
+  onAnxietyChange,
+}: Props) {
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>How are you feeling?</Text>
-      
       <View style={styles.row}>
         <Text style={styles.label}>Mood</Text>
         <Slider
@@ -21,15 +33,15 @@ export default function SubjectiveState() {
           minimumValue={1}
           maximumValue={5}
           step={1}
-          value={currentMood}
-          onValueChange={(val) => setCurrentState(val, currentHunger)}
+          value={mood}
+          onValueChange={onMoodChange}
           minimumTrackTintColor={colors.primary}
           maximumTrackTintColor={colors.surface}
           thumbTintColor={colors.primary}
         />
         <View style={styles.tickLabels}>
           {MOOD_LABELS.map((label, idx) => (
-            <Text key={idx} style={[styles.tickText, currentMood === idx + 1 && styles.tickTextActive]}>
+            <Text key={idx} style={[styles.tickText, mood === idx + 1 && styles.tickTextActive]}>
               {label}
             </Text>
           ))}
@@ -43,15 +55,37 @@ export default function SubjectiveState() {
           minimumValue={1}
           maximumValue={5}
           step={1}
-          value={currentHunger}
-          onValueChange={(val) => setCurrentState(currentMood, val)}
+          value={hunger}
+          onValueChange={onHungerChange}
           minimumTrackTintColor={colors.warning}
           maximumTrackTintColor={colors.surface}
           thumbTintColor={colors.warning}
         />
         <View style={styles.tickLabels}>
           {HUNGER_LABELS.map((label, idx) => (
-            <Text key={idx} style={[styles.tickText, currentHunger === idx + 1 && styles.tickTextActive]}>
+            <Text key={idx} style={[styles.tickText, hunger === idx + 1 && styles.tickTextActive]}>
+              {label}
+            </Text>
+          ))}
+        </View>
+      </View>
+
+      <View style={styles.row}>
+        <Text style={styles.label}>Anxiety</Text>
+        <Slider
+          style={styles.slider}
+          minimumValue={1}
+          maximumValue={5}
+          step={1}
+          value={anxiety}
+          onValueChange={onAnxietyChange}
+          minimumTrackTintColor={colors.error}
+          maximumTrackTintColor={colors.surface}
+          thumbTintColor={colors.error}
+        />
+        <View style={styles.tickLabels}>
+          {ANXIETY_LABELS.map((label, idx) => (
+            <Text key={idx} style={[styles.tickText, anxiety === idx + 1 && styles.tickTextActive]}>
               {label}
             </Text>
           ))}
@@ -63,13 +97,8 @@ export default function SubjectiveState() {
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 32, // Increased padding to prevent edge swiping
+    paddingHorizontal: 32,
     marginVertical: 16,
-  },
-  title: {
-    ...typography.h2,
-    color: colors.text,
-    marginBottom: 16,
   },
   row: {
     marginBottom: 24,

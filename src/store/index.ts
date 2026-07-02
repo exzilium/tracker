@@ -1,6 +1,7 @@
 import { create } from 'zustand';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from '@react-native-async-storage/async-storage'; // Kept for potential migrations
 import { persist, createJSONStorage } from 'zustand/middleware';
+import { zustandStorage } from './storage';
 
 export type Units = 'imperial' | 'metric';
 export type Gender = 'male' | 'female' | 'other';
@@ -17,14 +18,22 @@ export interface UserProfile {
   maxTHC: number;
 }
 
+export interface Session {
+  id: string;
+  startTime: number;
+  endTime: number | null;
+  mood: number;
+  hunger: number;
+  anxiety: number;
+}
+
 export interface Consumption {
   id: string;
+  sessionId: string;
   type: ConsumableType;
   name: string;
   emoji?: string;
   timestamp: number;
-  mood?: number;
-  hunger?: number;
   calories?: number;
   durationMins?: number;
   // Alcohol
@@ -35,26 +44,32 @@ export interface Consumption {
   mg?: number;
 }
 
-export interface FavoriteItem extends Omit<Consumption, 'id' | 'timestamp' | 'mood' | 'hunger'> {
+export interface FavoriteItem extends Omit<Consumption, 'id' | 'sessionId' | 'timestamp'> {
   id: string;
 }
 
 interface AppState {
   profile: UserProfile;
+  sessions: Session[];
+  activeSessionId: string | null;
+  isQuickEntryVisible: boolean;
+  isStartSessionVisible: boolean;
   consumptions: Consumption[];
   favorites: FavoriteItem[];
-  currentMood: number;
-  currentHunger: number;
-  lastCheckInTime: number;
-  isQuickEntryVisible: boolean;
   
   setQuickEntryVisible: (visible: boolean) => void;
+  setStartSessionVisible: (visible: boolean) => void;
   setProfile: (profile: Partial<UserProfile>) => void;
-  setCurrentState: (mood: number, hunger: number, updateCheckInTime?: boolean) => void;
   completeOnboarding: () => void;
-  addConsumption: (item: Omit<Consumption, 'id'> & { id?: string }) => void;
+  
+  startSession: (mood: number, hunger: number, anxiety: number, initialConsumptions?: Omit<Consumption, 'id' | 'sessionId'>[]) => void;
+  endSession: () => void;
+  updateSessionState: (mood: number, hunger: number, anxiety: number) => void;
+  
+  addConsumption: (item: Omit<Consumption, 'id' | 'sessionId'> & { id?: string }) => void;
   updateConsumption: (id: string, updates: Partial<Consumption>) => void;
   removeConsumption: (id: string) => void;
+  
   addFavorite: (item: Omit<FavoriteItem, 'id'>) => void;
   updateFavorite: (id: string, updates: Partial<FavoriteItem>) => void;
   removeFavorite: (id: string) => void;
@@ -74,10 +89,10 @@ export const useAppStore = create<AppState>()(
         maxBAC: 0.08,
         maxTHC: 10,
       },
-      currentMood: 3,
-      currentHunger: 3,
-      lastCheckInTime: 0,
+      sessions: [],
+      activeSessionId: null,
       isQuickEntryVisible: false,
+      isStartSessionVisible: false,
       consumptions: [],
       favorites: [
         { id: 'fav1', type: 'alcohol', name: 'Wine (5oz, 12%)', emoji: 'Ionicons:wine', volumeOz: 5, abvPercent: 12, durationMins: 45 },
@@ -92,30 +107,79 @@ export const useAppStore = create<AppState>()(
         
       setQuickEntryVisible: (visible) =>
         set({ isQuickEntryVisible: visible }),
-      
-      setCurrentState: (mood, hunger, updateCheckInTime = true) => 
-        set((state) => ({ 
-          currentMood: mood, 
-          currentHunger: hunger,
-          lastCheckInTime: updateCheckInTime ? Date.now() : state.lastCheckInTime
-        })),
+        
+      setStartSessionVisible: (visible) =>
+        set({ isStartSessionVisible: visible }),
         
       completeOnboarding: () =>
         set((state) => ({ profile: { ...state.profile, isOnboarded: true } })),
         
+      startSession: (mood, hunger, anxiety, initialConsumptions) => 
+        set((state) => {
+          const sessionId = Math.random().toString(36).substr(2, 9);
+          const newSession: Session = {
+            id: sessionId,
+            startTime: Date.now(),
+            endTime: null,
+            mood,
+            hunger,
+            anxiety
+          };
+          
+          let newConsumptions = [...state.consumptions];
+          if (initialConsumptions && initialConsumptions.length > 0) {
+            const mappedConsumptions = initialConsumptions.map(c => ({
+              ...c,
+              id: Math.random().toString(36).substr(2, 9),
+              sessionId,
+              timestamp: c.timestamp ?? Date.now()
+            }));
+            newConsumptions = [...newConsumptions, ...mappedConsumptions];
+          }
+          
+          return {
+            sessions: [...state.sessions, newSession],
+            activeSessionId: sessionId,
+            consumptions: newConsumptions
+          };
+        }),
+        
+      endSession: () => 
+        set((state) => {
+          if (!state.activeSessionId) return state;
+          return {
+            sessions: state.sessions.map(s => 
+              s.id === state.activeSessionId ? { ...s, endTime: Date.now() } : s
+            ),
+            activeSessionId: null
+          };
+        }),
+        
+      updateSessionState: (mood, hunger, anxiety) =>
+        set((state) => {
+          if (!state.activeSessionId) return state;
+          return {
+            sessions: state.sessions.map(s =>
+              s.id === state.activeSessionId ? { ...s, mood, hunger, anxiety } : s
+            )
+          };
+        }),
+        
       addConsumption: (item) =>
-        set((state) => ({
-          consumptions: [
-            ...state.consumptions,
-            { 
-              ...item, 
-              id: item.id || Math.random().toString(36).substr(2, 9), 
-              timestamp: item.timestamp ?? Date.now(),
-              mood: item.mood ?? state.currentMood,
-              hunger: item.hunger ?? state.currentHunger
-            },
-          ],
-        })),
+        set((state) => {
+          if (!state.activeSessionId) return state; // Must have an active session!
+          return {
+            consumptions: [
+              ...state.consumptions,
+              { 
+                ...item, 
+                id: item.id || Math.random().toString(36).substr(2, 9), 
+                sessionId: state.activeSessionId,
+                timestamp: item.timestamp ?? Date.now()
+              },
+            ],
+          };
+        }),
 
       updateConsumption: (id, updates) =>
         set((state) => ({
@@ -168,7 +232,7 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'tracker-storage',
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(() => zustandStorage),
     }
   )
 );

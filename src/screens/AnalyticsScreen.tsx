@@ -5,33 +5,35 @@ import { useAppStore } from '../store';
 import { colors, typography } from '../theme';
 
 export default function AnalyticsScreen({ navigation }: any) {
-  const { consumptions } = useAppStore();
+  const { sessions, consumptions } = useAppStore();
 
   const snapshot = useMemo(() => {
-    // Filter consumptions to just the last 24 hours for the "Morning After" view
-    const now = Date.now();
-    const last24h = consumptions.filter(c => (now - c.timestamp) < 24 * 60 * 60 * 1000);
+    if (sessions.length === 0) return null;
+    
+    // Get the most recent session
+    const lastSession = sessions[sessions.length - 1];
+    const sessionLogs = consumptions.filter(c => c.sessionId === lastSession.id);
 
     let totalDrinks = 0;
     let totalTHC = 0;
-    let sumMood = 0;
-    let sumHunger = 0;
-    let moodCount = 0;
-    let hungerCount = 0;
     
-    last24h.forEach(c => {
+    sessionLogs.forEach(c => {
       if (c.type === 'alcohol') totalDrinks += 1;
       if (c.type === 'thc' && c.mg) totalTHC += c.mg;
-      if (c.mood !== undefined) { sumMood += c.mood; moodCount++; }
-      if (c.hunger !== undefined) { sumHunger += c.hunger; hungerCount++; }
     });
 
     const roughPeakBAC = (totalDrinks * 0.02).toFixed(3); 
-    const avgMood = moodCount > 0 ? (sumMood / moodCount).toFixed(1) : 'N/A';
-    const avgHunger = hungerCount > 0 ? (sumHunger / hungerCount).toFixed(1) : 'N/A';
-
-    return { totalDrinks, totalTHC, roughPeakBAC, avgMood, avgHunger, logCount: last24h.length };
-  }, [consumptions]);
+    
+    return { 
+      totalDrinks, 
+      totalTHC, 
+      roughPeakBAC, 
+      avgMood: lastSession.mood, 
+      avgHunger: lastSession.hunger,
+      avgAnxiety: lastSession.anxiety,
+      logCount: sessionLogs.length 
+    };
+  }, [sessions, consumptions]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -43,11 +45,15 @@ export default function AnalyticsScreen({ navigation }: any) {
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.summaryBox}>
-          <Text style={styles.summaryText}>
-            Here is a snapshot of your consumption over the last 24 hours. Use this data to reflect and make adjustments for your next session!
-          </Text>
-        </View>
+        {!snapshot ? (
+          <Text style={styles.caption}>No sessions recorded yet.</Text>
+        ) : (
+          <>
+            <View style={styles.summaryBox}>
+              <Text style={styles.summaryText}>
+                Here is a snapshot of your most recent session. Use this data to reflect and make adjustments for next time!
+              </Text>
+            </View>
 
         <View style={styles.grid}>
           <View style={styles.card}>
@@ -63,13 +69,13 @@ export default function AnalyticsScreen({ navigation }: any) {
 
         <View style={styles.grid}>
           <View style={styles.card}>
-            <Text style={styles.cardLabel}>Avg Mood (0-10)</Text>
+            <Text style={styles.cardLabel}>Final Mood (1-5)</Text>
             <Text style={styles.cardValue}>{snapshot.avgMood}</Text>
           </View>
 
           <View style={styles.card}>
-            <Text style={styles.cardLabel}>Avg Hunger (0-10)</Text>
-            <Text style={styles.cardValue}>{snapshot.avgHunger}</Text>
+            <Text style={styles.cardLabel}>Anxiety (1-5)</Text>
+            <Text style={styles.cardValue}>{snapshot.avgAnxiety}</Text>
           </View>
         </View>
 
@@ -84,6 +90,8 @@ export default function AnalyticsScreen({ navigation }: any) {
               : "You stayed under the typical legal limit."}
           </Text>
         </View>
+        </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );

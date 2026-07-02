@@ -18,82 +18,49 @@ export interface SessionData {
 }
 
 export default function SessionsListScreen({ navigation }: any) {
-  const { consumptions, profile } = useAppStore();
+  const { sessions, consumptions, profile } = useAppStore();
 
-  const sessions = useMemo(() => {
-    if (consumptions.length === 0) return [];
+  const formattedSessions = useMemo(() => {
+    if (sessions.length === 0) return [];
 
-    // Sort by oldest first for grouping
-    const sorted = [...consumptions].sort((a, b) => a.timestamp - b.timestamp);
-    const result: SessionData[] = [];
-    
-    let currentSession: Consumption[] = [sorted[0]];
-    const GAP_MS = 8 * 60 * 60 * 1000; // 8 hours
-
-    for (let i = 1; i < sorted.length; i++) {
-      const prev = sorted[i - 1];
-      const curr = sorted[i];
-
-      if (curr.timestamp - prev.timestamp > GAP_MS) {
-        // Gap detected, close current session and start new
-        result.push({
-          id: currentSession[0].id,
-          startTime: currentSession[0].timestamp,
-          endTime: currentSession[currentSession.length - 1].timestamp,
-          consumptions: currentSession,
-          totalDrinks: 0,
-          totalTHC: 0,
-          totalCalories: 0,
-          peakBAC: 0,
-        });
-        currentSession = [curr];
-      } else {
-        currentSession.push(curr);
-      }
-    }
-    
-    // push last session
-    if (currentSession.length > 0) {
-      result.push({
-        id: currentSession[0].id,
-        startTime: currentSession[0].timestamp,
-        endTime: currentSession[currentSession.length - 1].timestamp,
-        consumptions: currentSession,
-        totalDrinks: 0,
-        totalTHC: 0,
-        totalCalories: 0,
-        peakBAC: 0,
-      });
-    }
-
-    // Process stats for each session
-    result.forEach(session => {
-      let maxBAC = 0;
+    const result: SessionData[] = sessions.map(s => {
+      const sessionConsumptions = consumptions.filter(c => c.sessionId === s.id);
       
-      // We calculate peak BAC by checking levels between startTime and endTime + 8 hours
-      const checkEnd = session.endTime + (8 * 60 * 60 * 1000); // peak can happen after last drink
-      for (let t = session.startTime; t <= checkEnd; t += 5 * 60 * 1000) {
-        const { currentBAC } = getCurrentLevels(session.consumptions, profile, t);
+      let totalDrinks = 0;
+      let totalTHC = 0;
+      let totalCalories = 0;
+      let maxBAC = 0;
+
+      // Calculate peak BAC by checking levels between startTime and endTime (or +8h if active)
+      const checkEnd = s.endTime ? s.endTime : Date.now() + (8 * 60 * 60 * 1000);
+      for (let t = s.startTime; t <= checkEnd; t += 5 * 60 * 1000) {
+        const { currentBAC } = getCurrentLevels(sessionConsumptions, profile, t);
         if (currentBAC > maxBAC) maxBAC = currentBAC;
       }
-      
-      session.peakBAC = Number(maxBAC.toFixed(3));
 
-      session.consumptions.forEach(c => {
+      sessionConsumptions.forEach(c => {
         if (c.type === 'alcohol' && c.volumeOz && c.abvPercent) {
-          session.totalDrinks += calculateStandardDrinks(c.volumeOz, c.abvPercent);
+          totalDrinks += calculateStandardDrinks(c.volumeOz, c.abvPercent);
         }
-        if (c.type === 'thc' && c.mg) session.totalTHC += c.mg;
-        if (c.calories) session.totalCalories += c.calories;
+        if (c.type === 'thc' && c.mg) totalTHC += c.mg;
+        if (c.calories) totalCalories += c.calories;
       });
-      
-      // Fix precision issues
-      session.totalDrinks = Number(session.totalDrinks.toFixed(1));
+
+      return {
+        id: s.id,
+        startTime: s.startTime,
+        endTime: s.endTime || Date.now(),
+        consumptions: sessionConsumptions,
+        totalDrinks: Number(totalDrinks.toFixed(1)),
+        totalTHC,
+        totalCalories,
+        peakBAC: Number(maxBAC.toFixed(3)),
+      };
     });
 
     // Return newest sessions first
     return result.reverse();
-  }, [consumptions]);
+  }, [sessions, consumptions, profile]);
 
   const formatDate = (ts: number) => {
     return new Date(ts).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
@@ -109,10 +76,10 @@ export default function SessionsListScreen({ navigation }: any) {
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-        {sessions.length === 0 ? (
+        {formattedSessions.length === 0 ? (
           <Text style={styles.emptyText}>No sessions recorded yet.</Text>
         ) : (
-          sessions.map(session => (
+          formattedSessions.map(session => (
             <TouchableOpacity 
               key={session.id} 
               style={styles.card}

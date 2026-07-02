@@ -28,7 +28,8 @@ export const calculateDangerLevel = (
   currentTHC: number, // mg
   maxTHC: number,  // mg
   mood: number,    // 1-5
-  hunger: number   // 1-5
+  hunger: number,  // 1-5
+  anxiety: number  // 1-5
 ): { dangerPercent: number, warningMsg: string | null } => {
   
   // Base danger is the highest percentage relative to either limit
@@ -44,6 +45,10 @@ export const calculateDangerLevel = (
   if (hunger === 5) baseDanger += 15;
   else if (hunger === 1 || hunger === 4) baseDanger += 5;
 
+  // Anxiety Modifiers
+  if (anxiety === 5) baseDanger += 15;
+  else if (anxiety === 4) baseDanger += 5;
+
   let warningMsg = null;
   if (baseDanger >= 100) {
     warningMsg = "You've hit your limit. Time to stop.";
@@ -58,6 +63,8 @@ export const calculateDangerLevel = (
     
     if (hunger >= 4) warningMsg += " Also, you need to eat something!";
     else if (hunger === 1) warningMsg += " You're too full to drink more comfortably.";
+
+    if (anxiety >= 4) warningMsg += " Your anxiety is high. Using this to cope isn't the best idea.";
   }
 
   return {

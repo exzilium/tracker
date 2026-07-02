@@ -40,7 +40,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "predeploy": "npx expo export",
-    "deploy": "gh-pages -t -d dist"
+    "deploy": "echo \"\" > dist/.gitignore && gh-pages -t -d dist"
   },
   "private": true,
   "homepage": "https://exzilium.github.io/tracker"

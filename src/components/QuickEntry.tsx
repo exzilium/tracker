@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, TextInput,
 import { useAppStore, FavoriteItem, ConsumableType } from '../store';
 import { colors, typography } from '../theme';
 import { scheduleHydrationReminder } from '../utils/notifications';
+import { AppAlert } from '../utils/AppAlert';
 
 const CHECK_IN_COOLDOWN_MS = 2 * 60 * 60 * 1000; // 2 hours
 
@@ -98,18 +99,18 @@ export default function QuickEntry() {
     const minsAgo = parseFloat(customMinutesAgo) || 0;
 
     if (!customName || !customEmoji) {
-      Alert.alert('Missing Fields', 'Please provide a name and emoji.');
+      AppAlert('Missing Fields', 'Please provide a name and emoji.');
       return;
     }
 
     if (isAlcohol) {
       if (isNaN(amount) || isNaN(abv) || isNaN(duration)) {
-        Alert.alert('Missing Fields', 'Please provide volume, ABV, and duration.');
+        AppAlert('Missing Fields', 'Please provide volume, ABV, and duration.');
         return;
       }
     } else {
       if (isNaN(amount)) {
-        Alert.alert('Missing Fields', 'Please provide THC amount in mg.');
+        AppAlert('Missing Fields', 'Please provide THC amount in mg.');
         return;
       }
     }

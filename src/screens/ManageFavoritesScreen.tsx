@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppStore, FavoriteItem, ConsumableType } from '../store';
 import { colors, typography } from '../theme';
 import EntryIcon from '../components/EntryIcon';
+import { AppAlert } from '../utils/AppAlert';
 
 export default function ManageFavoritesScreen({ navigation }: any) {
   const { favorites, removeFavorite, moveFavorite, moveToTopFavorite, updateFavorite } = useAppStore();
@@ -20,7 +21,7 @@ export default function ManageFavoritesScreen({ navigation }: any) {
   const [editCalories, setEditCalories] = useState('');
 
   const handleRemove = (id: string, name: string) => {
-    Alert.alert(
+    AppAlert(
       "Remove Favorite",
       `Are you sure you want to delete ${name}?`,
       [

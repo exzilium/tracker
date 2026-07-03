@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import * as Crypto from 'expo-crypto';
 import AsyncStorage from '@react-native-async-storage/async-storage'; // Kept for potential migrations
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { zustandStorage } from './storage';
@@ -116,7 +117,7 @@ export const useAppStore = create<AppState>()(
         
       startSession: (mood, hunger, anxiety, initialConsumptions) => 
         set((state) => {
-          const sessionId = Math.random().toString(36).substr(2, 9);
+          const sessionId = Crypto.randomUUID();
           const newSession: Session = {
             id: sessionId,
             startTime: Date.now(),
@@ -130,7 +131,7 @@ export const useAppStore = create<AppState>()(
           if (initialConsumptions && initialConsumptions.length > 0) {
             const mappedConsumptions = initialConsumptions.map(c => ({
               ...c,
-              id: Math.random().toString(36).substr(2, 9),
+              id: Crypto.randomUUID(),
               sessionId,
               timestamp: c.timestamp ?? Date.now()
             }));
@@ -167,17 +168,15 @@ export const useAppStore = create<AppState>()(
         
       addConsumption: (item) =>
         set((state) => {
-          if (!state.activeSessionId) return state; // Must have an active session!
+          if (!state.activeSessionId) return state;
+          const newConsumption: Consumption = {
+            ...item,
+            id: item.id || Crypto.randomUUID(),
+            sessionId: state.activeSessionId,
+            timestamp: item.timestamp ?? Date.now()
+          };
           return {
-            consumptions: [
-              ...state.consumptions,
-              { 
-                ...item, 
-                id: item.id || Math.random().toString(36).substr(2, 9), 
-                sessionId: state.activeSessionId,
-                timestamp: item.timestamp ?? Date.now()
-              },
-            ],
+            consumptions: [...state.consumptions, newConsumption],
           };
         }),
 
@@ -194,12 +193,15 @@ export const useAppStore = create<AppState>()(
         })),
         
       addFavorite: (item) =>
-        set((state) => ({
-          favorites: [
-            ...state.favorites,
-            { ...item, id: Math.random().toString(36).substr(2, 9) },
-          ],
-        })),
+        set((state) => {
+          const newFav: FavoriteItem = {
+            ...item,
+            id: Crypto.randomUUID(),
+          };
+          return {
+            favorites: [...state.favorites, newFav],
+          };
+        }),
 
       updateFavorite: (id, updates) =>
         set((state) => ({

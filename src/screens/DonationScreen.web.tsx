@@ -2,10 +2,11 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, typography } from '../theme';
+import { AppAlert } from '../utils/AppAlert';
 
 export default function DonationScreen({ navigation }: any) {
   const handlePurchase = () => {
-    Alert.alert('Simulated', 'This is a simulated purchase for Web! 🍻');
+    AppAlert('Simulated', 'This is a simulated purchase for Web! 🍻');
   };
 
   return (

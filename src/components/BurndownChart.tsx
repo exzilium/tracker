@@ -25,9 +25,10 @@ const formatTime = (ts: number, showMins = false) => {
 interface BurndownChartProps {
   consumptionsOverride?: any[];
   startTimeOverride?: number;
+  lastRefreshed?: number;
 }
 
-export default function BurndownChart({ consumptionsOverride, startTimeOverride }: BurndownChartProps) {
+export default function BurndownChart({ consumptionsOverride, startTimeOverride, lastRefreshed }: BurndownChartProps) {
   const storeConsumptions = useAppStore(state => state.consumptions);
   const profile = useAppStore(state => state.profile);
   
@@ -95,7 +96,7 @@ export default function BurndownChart({ consumptionsOverride, startTimeOverride 
   const midBacY = getBacY(highestBAC / 2);
   const midThcY = getThcY(highestTHC / 2);
 
-  const realNow = Date.now();
+  const realNow = lastRefreshed || Date.now();
   const currentDiffMins = (realNow - now) / 60000;
   const nowX = (currentDiffMins / 5) * stepX;
 

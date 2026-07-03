@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform, 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { colors, typography } from '../theme';
+import { AppAlert } from '../utils/AppAlert';
 
 const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
@@ -46,14 +47,14 @@ export default function DonationScreen({ navigation }: any) {
 
   const handlePurchase = async (sku: string) => {
     if (isExpoGo) {
-      Alert.alert('Simulated Purchase', 'This is a mocked purchase because you are running in Expo Go! 🍻');
+      AppAlert('Simulated Purchase', 'This is a mocked purchase because you are running in Expo Go! 🍻');
       return;
     }
 
     try {
       const RNIap = require('react-native-iap');
       await RNIap.requestPurchase({ sku });
-      Alert.alert('Success!', 'Thank you for the beer! 🍻');
+      AppAlert('Success!', 'Thank you for the beer! 🍻');
     } catch (err: any) {
       console.warn(err.code, err.message);
     }

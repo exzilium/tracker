@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform } from 'react-native';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, AppState, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppStore, Consumption } from '../store';
 import { colors, typography } from '../theme';
@@ -12,6 +12,7 @@ import EditConsumptionModal from '../components/EditConsumptionModal';
 import EndSessionConfirmModal from '../components/EndSessionConfirmModal';
 import { registerForPushNotificationsAsync } from '../utils/notifications';
 import { getCurrentLevels, getPeaks } from '../utils/currentLevels';
+import { AppAlert } from '../utils/AppAlert';
 
 const timeAgo = (ts: number) => {
   const diffMs = Date.now() - ts;
@@ -39,9 +40,25 @@ export default function DashboardScreen({ navigation }: any) {
   const [peaks, setPeaks] = useState({ peakBAC: 0, peakBACTime: 0, peakTHC: 0, peakTHCTime: 0 });
   const [editingLog, setEditingLog] = useState<Consumption | null>(null);
   const [endSessionConfirmVisible, setEndSessionConfirmVisible] = useState(false);
+  const [lastRefreshed, setLastRefreshed] = useState(Date.now());
 
   useEffect(() => {
     registerForPushNotificationsAsync();
+    
+    // Heartbeat to update relative times every 60s
+    const timer = setInterval(() => setLastRefreshed(Date.now()), 60000);
+    
+    // AppState listener for when returning from background/locked state
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      if (nextAppState === 'active') {
+        setLastRefreshed(Date.now());
+      }
+    });
+
+    return () => {
+      clearInterval(timer);
+      subscription.remove();
+    };
   }, []);
 
   const activeSession = sessions.find(s => s.id === activeSessionId);
@@ -80,20 +97,14 @@ export default function DashboardScreen({ navigation }: any) {
   }, [currentSessionLogs, profile]);
 
   const handleDelete = (id: string, name: string) => {
-    if (Platform.OS === 'web') {
-      if (window.confirm(`Are you sure you want to delete ${name}?`)) {
-        removeConsumption(id);
-      }
-    } else {
-      Alert.alert(
-        "Remove Log",
-        `Are you sure you want to delete ${name}?`,
-        [
-          { text: "Cancel", style: "cancel" },
-          { text: "Delete", style: "destructive", onPress: () => removeConsumption(id) }
-        ]
-      );
-    }
+    AppAlert(
+      "Remove Log",
+      `Are you sure you want to delete ${name}?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: () => removeConsumption(id) }
+      ]
+    );
   };
 
   const handleMarkFinished = (item: Consumption) => {
@@ -153,7 +164,7 @@ export default function DashboardScreen({ navigation }: any) {
               onAnxietyChange={(v) => updateSessionState(activeSession!.mood, activeSession!.hunger, v)}
             />
 
-            <BurndownChart consumptionsOverride={currentSessionLogs} />
+            <BurndownChart consumptionsOverride={currentSessionLogs} lastRefreshed={lastRefreshed} />
             
             <AdBanner />
 

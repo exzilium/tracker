@@ -74,7 +74,7 @@ export default function OnboardingScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       {/* Background Stars */}
-      <View style={[StyleSheet.absoluteFill, { overflow: 'hidden' }]} pointerEvents="none">
+      <View style={[StyleSheet.absoluteFill, { overflow: 'hidden', pointerEvents: 'none' as any }]}>
         {stars.map((s) => (
           <Text key={s.id} style={{
             position: 'absolute',
@@ -204,14 +204,14 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   logo: {
-    width: 120,
-    height: 120,
+    width: 160,
+    height: 160,
     marginBottom: 16,
   },
   mainTitle: {
     ...typography.h1,
     fontSize: 32,
-    color: colors.primary,
+    color: colors.text,
     letterSpacing: 2,
     textAlign: 'center',
     marginBottom: 8,

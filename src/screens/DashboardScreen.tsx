@@ -128,7 +128,7 @@ export default function DashboardScreen({ navigation }: any) {
     <SafeAreaView style={styles.container}>
       <ScrollView>
         <View style={styles.headerRow}>
-          <Text style={styles.header}>Dashboard</Text>
+          <Text style={[styles.header, { letterSpacing: 1 }]}>Space Tether</Text>
         </View>
 
         {!activeSessionId ? (
@@ -249,13 +249,13 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     paddingHorizontal: 24,
     paddingTop: 24,
   },
   header: {
     ...typography.h1,
-    color: colors.primary,
+    color: colors.text,
   },
   logSection: {
     flex: 1,

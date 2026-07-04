@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Switch } from 'react-native';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Switch, Animated, Image, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppStore, Units, Gender } from '../store';
 import { colors, typography } from '../theme';
@@ -15,6 +15,44 @@ export default function OnboardingScreen() {
   const [heightInStr, setHeightInStr] = useState(profile.units === 'imperial' && initHeight ? (initHeight % 12).toString() : '');
   
   const isMetric = profile.units === 'metric';
+
+  // Animation for the logo
+  const floatAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim, {
+          toValue: -10,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(floatAnim, {
+          toValue: 0,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, [floatAnim]);
+
+  // Generate static background stars
+  const stars = useMemo(() => {
+    const { width, height } = Dimensions.get('window');
+    const starCount = 30;
+    const generated = [];
+    for (let i = 0; i < starCount; i++) {
+      generated.push({
+        id: i,
+        char: Math.random() > 0.5 ? '+' : 'x',
+        top: Math.random() * (height * 1.5),
+        left: Math.random() * width,
+        opacity: Math.random() * 0.4 + 0.1,
+        size: Math.random() * 6 + 8,
+      });
+    }
+    return generated;
+  }, []);
 
   const handleComplete = () => {
     let finalHeight = 0;
@@ -34,17 +72,40 @@ export default function OnboardingScreen() {
   };
 
   return (
-    <ScrollView 
-      style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}
-      contentContainerStyle={styles.content}
-    >
-      <Text style={styles.title}>Welcome</Text>
-      
-      <View style={styles.disclaimerBox}>
-        <Text style={styles.disclaimerText}>
-          ⚠️ IMPORTANT: This app is for entertainment purposes only and makes no medical claims. You must be 21 or older to use this application. Please drink responsibly and never drink and drive.
-        </Text>
+    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+      {/* Background Stars */}
+      <View style={[StyleSheet.absoluteFill, { overflow: 'hidden' }]} pointerEvents="none">
+        {stars.map((s) => (
+          <Text key={s.id} style={{
+            position: 'absolute',
+            top: s.top,
+            left: s.left,
+            color: colors.textSecondary,
+            opacity: s.opacity,
+            fontSize: s.size,
+          }}>
+            {s.char}
+          </Text>
+        ))}
       </View>
+
+      <ScrollView contentContainerStyle={styles.content}>
+        
+        <View style={styles.headerContainer}>
+          <Animated.Image 
+            source={require('../../assets/icon.png')}
+            style={[styles.logo, { transform: [{ translateY: floatAnim }] }]}
+            resizeMode="contain"
+          />
+          <Text style={styles.mainTitle}>SPACE TETHER</Text>
+          <Text style={styles.subtitle}>Establish your baseline. We'll keep you tethered.</Text>
+        </View>
+        
+        <View style={styles.disclaimerBox}>
+          <Text style={styles.disclaimerText}>
+            ⚠️ IMPORTANT: This app is for entertainment purposes only and makes no medical claims. You must be 21 or older to use this application. Please drink responsibly and never drink and drive.
+          </Text>
+        </View>
 
       <View style={styles.section}>
         <Text style={styles.label}>Units</Text>
@@ -125,6 +186,7 @@ export default function OnboardingScreen() {
         <Text style={styles.btnPrimaryText}>I AM 21+ & AGREE</Text>
       </TouchableOpacity>
     </ScrollView>
+  </View>
   );
 }
 
@@ -136,11 +198,29 @@ const styles = StyleSheet.create({
   content: {
     padding: 24,
   },
-  title: {
-    ...typography.h1,
-    color: colors.primary,
+  headerContainer: {
+    alignItems: 'center',
     marginBottom: 24,
+    marginTop: 12,
+  },
+  logo: {
+    width: 120,
+    height: 120,
+    marginBottom: 16,
+  },
+  mainTitle: {
+    ...typography.h1,
+    fontSize: 32,
+    color: colors.primary,
+    letterSpacing: 2,
     textAlign: 'center',
+    marginBottom: 8,
+  },
+  subtitle: {
+    ...typography.body,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    fontSize: 16,
   },
   disclaimerBox: {
     backgroundColor: 'rgba(207, 102, 121, 0.1)',

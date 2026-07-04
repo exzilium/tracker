@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Switch, Platform } from 'react-native';
+import React, { useState, useRef } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Switch, Platform, Animated, Image } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
@@ -23,6 +24,31 @@ export default function SettingsScreen({ navigation }: any) {
   const [thcLimitStr, setThcLimitStr] = useState(profile.maxTHC ? profile.maxTHC.toString() : '10');
 
   const isMetric = profile.units === 'metric';
+
+  // Easter Egg Logic
+  const [tapCount, setTapCount] = useState(0);
+  const flyAnim = useRef(new Animated.Value(0)).current;
+
+  const handleLogoTap = () => {
+    const newCount = tapCount + 1;
+    setTapCount(newCount);
+    
+    if (newCount >= 5) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Animated.timing(flyAnim, {
+        toValue: -800,
+        duration: 800,
+        useNativeDriver: true,
+      }).start(() => {
+        setTimeout(() => {
+          flyAnim.setValue(0);
+          setTapCount(0);
+        }, 1000);
+      });
+    } else {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  };
 
   const handleSave = () => {
     let finalHeight = 0;
@@ -266,6 +292,14 @@ export default function SettingsScreen({ navigation }: any) {
 
         <TouchableOpacity style={styles.btnPrimary} onPress={handleSave}>
           <Text style={styles.btnPrimaryText}>SAVE SETTINGS</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity activeOpacity={0.8} onPress={handleLogoTap} style={{ alignItems: 'center', marginTop: 40, marginBottom: 40 }}>
+          <Animated.Image 
+            source={require('../../assets/icon.png')}
+            style={{ width: 80, height: 80, opacity: 0.3, transform: [{ translateY: flyAnim }] }}
+            resizeMode="contain"
+          />
         </TouchableOpacity>
       </ScrollView>
     </View>

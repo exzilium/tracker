@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, AppState, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, AppState, Platform, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppStore, Consumption } from '../store';
 import { colors, typography } from '../theme';
@@ -134,7 +134,12 @@ export default function DashboardScreen({ navigation }: any) {
         {!activeSessionId ? (
           <View style={styles.emptyState}>
             <View style={styles.emptyStateContent}>
-              <Text style={styles.emptyTitle}>Ready to track?</Text>
+              <Image 
+                source={require('../../assets/icon.png')} 
+                style={{ width: 120, height: 120, opacity: 0.15, marginBottom: 24 }} 
+                resizeMode="contain"
+              />
+              <Text style={styles.emptyTitle}>Awaiting Launch...</Text>
               <Text style={styles.emptySubtitle}>Log your mood and intent before you start consuming.</Text>
               <TouchableOpacity style={styles.startBtn} onPress={() => setStartSessionVisible(true)}>
                 <Text style={styles.startBtnText}>Start New Session</Text>

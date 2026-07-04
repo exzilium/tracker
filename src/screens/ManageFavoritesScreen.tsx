@@ -295,7 +295,7 @@ const styles = StyleSheet.create({
   },
   header: {
     ...typography.h2,
-    color: colors.primary,
+    color: colors.text,
   },
   content: {
     paddingHorizontal: 24,

@@ -39,7 +39,7 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 24, paddingTop: 24, marginBottom: 24 },
   backBtn: { marginRight: 16, padding: 8, backgroundColor: colors.surface, borderRadius: 8 },
   backBtnText: { color: colors.text, fontWeight: 'bold' },
-  header: { ...typography.h1, color: colors.primary },
+  header: { ...typography.h1, color: colors.text },
   content: { paddingHorizontal: 32, alignItems: 'center', marginTop: 40 },
   emoji: { fontSize: 80, marginBottom: 24 },
   bodyText: { ...typography.body, color: colors.textSecondary, textAlign: 'center', lineHeight: 24, marginBottom: 40 },

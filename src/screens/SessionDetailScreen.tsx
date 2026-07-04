@@ -183,7 +183,7 @@ const styles = StyleSheet.create({
   },
   header: {
     ...typography.h1,
-    color: colors.primary,
+    color: colors.text,
   },
   content: {
     paddingBottom: 40,

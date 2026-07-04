@@ -48,7 +48,7 @@ export default function SettingsScreen({ navigation }: any) {
     try {
       const state = useAppStore.getState();
       const exportJson = JSON.stringify(state, null, 2);
-      const filename = `exzilium_backup_${new Date().toISOString().split('T')[0]}.json`;
+      const filename = `space_tether_backup_${new Date().toISOString().split('T')[0]}.json`;
 
       if (Platform.OS === 'web') {
         const blob = new Blob([exportJson], { type: 'application/json' });
@@ -102,7 +102,7 @@ export default function SettingsScreen({ navigation }: any) {
       const parsed = JSON.parse(jsonStr);
 
       if (!parsed.profile || !parsed.consumptions) {
-        AppAlert('Invalid Backup', 'The selected file does not appear to be a valid Exzilium backup.');
+        AppAlert('Invalid Backup', 'The selected file does not appear to be a valid Space Tether backup.');
         return;
       }
 
@@ -253,7 +253,7 @@ export default function SettingsScreen({ navigation }: any) {
 
         <Text style={styles.sectionTitle}>Data Management</Text>
         <View style={styles.card}>
-          <Text style={styles.caption}>Exzilium stores your data completely offline. Export your data to back it up.</Text>
+          <Text style={styles.caption}>Space Tether stores your data completely offline. Export your data to back it up.</Text>
           <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
             <TouchableOpacity style={[styles.btnSecondary, { flex: 1, marginTop: 0 }]} onPress={exportData}>
               <Text style={styles.btnSecondaryText}>EXPORT</Text>

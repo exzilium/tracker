@@ -1,8 +1,12 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Switch } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Switch, Platform } from 'react-native';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
+import * as DocumentPicker from 'expo-document-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppStore, Gender } from '../store';
 import { colors, typography } from '../theme';
+import { AppAlert } from '../utils/AppAlert';
 
 export default function SettingsScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
@@ -38,6 +42,89 @@ export default function SettingsScreen({ navigation }: any) {
     });
 
     navigation.goBack();
+  };
+
+  const exportData = async () => {
+    try {
+      const state = useAppStore.getState();
+      const exportJson = JSON.stringify(state, null, 2);
+      const filename = `exzilium_backup_${new Date().toISOString().split('T')[0]}.json`;
+
+      if (Platform.OS === 'web') {
+        const blob = new Blob([exportJson], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        const fileUri = `${FileSystem.documentDirectory}${filename}`;
+        await FileSystem.writeAsStringAsync(fileUri, exportJson, { encoding: FileSystem.EncodingType.UTF8 });
+        
+        const isSharable = await Sharing.isAvailableAsync();
+        if (isSharable) {
+          await Sharing.shareAsync(fileUri);
+        } else {
+          AppAlert('Error', 'File sharing is not available on this device');
+        }
+      }
+    } catch (e) {
+      console.error(e);
+      AppAlert('Error', 'Failed to export data');
+    }
+  };
+
+  const importData = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'application/json',
+        copyToCacheDirectory: true,
+      });
+
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        return;
+      }
+
+      const file = result.assets[0];
+      let jsonStr = '';
+
+      if (Platform.OS === 'web') {
+        if (file.file) {
+          jsonStr = await file.file.text();
+        } else {
+          throw new Error('Could not read web file');
+        }
+      } else {
+        jsonStr = await FileSystem.readAsStringAsync(file.uri, { encoding: FileSystem.EncodingType.UTF8 });
+      }
+
+      const parsed = JSON.parse(jsonStr);
+
+      if (!parsed.profile || !parsed.consumptions) {
+        AppAlert('Invalid Backup', 'The selected file does not appear to be a valid Exzilium backup.');
+        return;
+      }
+
+      AppAlert(
+        'Confirm Import',
+        'This will completely overwrite your current data with the backup. This cannot be undone. Are you sure?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Import', 
+            style: 'destructive',
+            onPress: () => {
+              useAppStore.setState(parsed);
+              AppAlert('Success', 'Data imported successfully.');
+            }
+          }
+        ]
+      );
+    } catch (e) {
+      console.error(e);
+      AppAlert('Error', 'Failed to read or parse the backup file.');
+    }
   };
 
   return (
@@ -163,6 +250,19 @@ export default function SettingsScreen({ navigation }: any) {
         <TouchableOpacity style={styles.btnSecondary} onPress={() => navigation.navigate('Donation')}>
           <Text style={styles.btnSecondaryText}>🍻 BUY ME A BEER</Text>
         </TouchableOpacity>
+
+        <Text style={styles.sectionTitle}>Data Management</Text>
+        <View style={styles.card}>
+          <Text style={styles.caption}>Exzilium stores your data completely offline. Export your data to back it up.</Text>
+          <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
+            <TouchableOpacity style={[styles.btnSecondary, { flex: 1, marginTop: 0 }]} onPress={exportData}>
+              <Text style={styles.btnSecondaryText}>EXPORT</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.btnSecondary, { flex: 1, marginTop: 0, borderColor: colors.warning }]} onPress={importData}>
+              <Text style={[styles.btnSecondaryText, { color: colors.warning }]}>IMPORT</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
 
         <TouchableOpacity style={styles.btnPrimary} onPress={handleSave}>
           <Text style={styles.btnPrimaryText}>SAVE SETTINGS</Text>

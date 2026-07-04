@@ -6,8 +6,30 @@ import { colors, typography } from '../theme';
 import EntryIcon from '../components/EntryIcon';
 import { AppAlert } from '../utils/AppAlert';
 
-export default function ManageFavoritesScreen({ navigation }: any) {
-  const { favorites, removeFavorite, moveFavorite, moveToTopFavorite, updateFavorite } = useAppStore();
+const ALCOHOL_ICONS = [
+  'Ionicons:beer-outline',
+  'Ionicons:wine',
+  'FontAwesome5:cocktail',
+  'FontAwesome5:glass-whiskey',
+  'MaterialCommunityIcons:bottle-wine',
+  'MaterialCommunityIcons:glass-tulip',
+  'FontAwesome5:glass-martini',
+  'Ionicons:cafe-outline'
+];
+
+const THC_ICONS = [
+  'FontAwesome5:cookie-bite',
+  'MaterialCommunityIcons:pine-tree-variant-outline',
+  'FontAwesome5:wind',
+  'MaterialCommunityIcons:candycane',
+  'MaterialCommunityIcons:cupcake',
+  'Ionicons:leaf-outline',
+  'FontAwesome5:pills',
+  'MaterialCommunityIcons:smoking'
+];
+
+export default function ManageFavoritesScreen({ navigation, route }: any) {
+  const { favorites, removeFavorite, moveFavorite, moveToTopFavorite, updateFavorite, setQuickEntryVisible } = useAppStore();
 
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editingFav, setEditingFav] = useState<FavoriteItem | null>(null);
@@ -84,11 +106,17 @@ export default function ManageFavoritesScreen({ navigation }: any) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.headerRow}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => {
+          navigation.goBack();
+          if (route.params?.returnToQuickEntry) {
+            setQuickEntryVisible(true);
+          }
+        }} style={styles.backBtn}>
           <Text style={styles.backBtnText}>← Back</Text>
         </TouchableOpacity>
-        <Text style={styles.header}>Manage Favorites</Text>
+        <Text style={styles.title}>Manage Favorites</Text>
+        <View style={{ width: 60 }} />
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
@@ -99,19 +127,21 @@ export default function ManageFavoritesScreen({ navigation }: any) {
         ) : (
           favorites.map((fav, index) => (
             <View key={fav.id} style={styles.favItem}>
-              <Text style={styles.favNumber}>{index + 1}.</Text>
-              
-              <View style={styles.favIconWrapper}>
-                <EntryIcon iconString={fav.emoji} size={32} color={colors.text} />
-              </View>
-              
-              <View style={styles.favDetails}>
-                <Text style={styles.favName}>{fav.name}</Text>
-                {fav.type === 'alcohol' ? (
-                  <Text style={styles.favDesc}>{fav.volumeOz}oz • {fav.abvPercent}% ABV</Text>
-                ) : (
-                  <Text style={styles.favDesc}>{fav.mg}mg THC</Text>
-                )}
+              <View style={styles.favDetailsRow}>
+                <Text style={styles.favNumber}>{index + 1}.</Text>
+                
+                <View style={styles.favIconWrapper}>
+                  <EntryIcon iconString={fav.emoji} size={32} color={colors.text} />
+                </View>
+                
+                <View style={styles.favDetails}>
+                  <Text style={styles.favName}>{fav.name}</Text>
+                  {fav.type === 'alcohol' ? (
+                    <Text style={styles.favDesc}>{fav.volumeOz}oz • {fav.abvPercent}% ABV</Text>
+                  ) : (
+                    <Text style={styles.favDesc}>{fav.mg}mg THC</Text>
+                  )}
+                </View>
               </View>
 
               <View style={styles.actionsRow}>
@@ -166,7 +196,7 @@ export default function ManageFavoritesScreen({ navigation }: any) {
               <Text style={styles.modalTitle}>Edit Favorite</Text>
 
               <View style={styles.inputRow}>
-                <View style={{flex: 1, marginRight: 8}}>
+                <View style={{flex: 1}}>
                   <Text style={styles.inputLabel}>Name</Text>
                   <TextInput
                     style={styles.input}
@@ -176,18 +206,20 @@ export default function ManageFavoritesScreen({ navigation }: any) {
                     onChangeText={setEditName}
                   />
                 </View>
-                <View style={{width: 60}}>
-                  <Text style={styles.inputLabel}>Emoji</Text>
-                  <TextInput
-                    style={[styles.input, { textAlign: 'center' }]}
-                    placeholder="Emoji"
-                    placeholderTextColor={colors.textSecondary}
-                    value={editEmoji}
-                    onChangeText={setEditEmoji}
-                    maxLength={2}
-                  />
-                </View>
               </View>
+
+              <Text style={styles.inputLabel}>Select Icon</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginBottom: 16}}>
+                {(editingFav?.type === 'alcohol' ? ALCOHOL_ICONS : THC_ICONS).map(icon => (
+                  <TouchableOpacity
+                    key={icon}
+                    style={[styles.iconPickerBtn, editEmoji === icon && styles.iconPickerBtnActive]}
+                    onPress={() => setEditEmoji(icon)}
+                  >
+                    <EntryIcon iconString={icon} size={24} color={editEmoji === icon ? colors.background : colors.text} />
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
 
               {editingFav?.type === 'alcohol' ? (
                 <>
@@ -276,24 +308,25 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  headerRow: {
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 24,
-    paddingTop: 24,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.surface,
     marginBottom: 16,
   },
   backBtn: {
-    marginRight: 16,
-    padding: 8,
-    backgroundColor: colors.surface,
-    borderRadius: 8,
+    width: 60,
   },
   backBtnText: {
-    color: colors.text,
+    color: colors.primary,
+    ...typography.body,
     fontWeight: 'bold',
   },
-  header: {
+  title: {
     ...typography.h2,
     color: colors.text,
   },
@@ -312,11 +345,14 @@ const styles = StyleSheet.create({
     marginTop: 40,
   },
   favItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
     backgroundColor: colors.surface,
     padding: 16,
     borderRadius: 12,
+    marginBottom: 12,
+  },
+  favDetailsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 12,
   },
   favIcon: {
@@ -337,6 +373,10 @@ const styles = StyleSheet.create({
   },
   actionsRow: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.05)',
+    paddingTop: 12,
     gap: 8,
   },
   iconBtn: {
@@ -404,6 +444,18 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: 4,
     fontWeight: 'bold',
+  },
+  iconPickerBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  iconPickerBtnActive: {
+    backgroundColor: colors.primary,
   },
   input: {
     backgroundColor: colors.surface,

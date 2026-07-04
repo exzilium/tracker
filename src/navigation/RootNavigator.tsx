@@ -101,13 +101,13 @@ export default function RootNavigator() {
             </>
           )}
         </Stack.Navigator>
+        {isOnboarded && (
+          <>
+            <QuickEntry />
+            <StartSessionModal />
+          </>
+        )}
       </NavigationContainer>
-      {isOnboarded && (
-        <>
-          <QuickEntry />
-          <StartSessionModal />
-        </>
-      )}
     </>
   );
 }

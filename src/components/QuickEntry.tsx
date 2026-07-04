@@ -4,6 +4,7 @@ import { useAppStore, FavoriteItem, ConsumableType } from '../store';
 import { colors, typography } from '../theme';
 import { scheduleHydrationReminder } from '../utils/notifications';
 import { AppAlert } from '../utils/AppAlert';
+import { useNavigation } from '@react-navigation/native';
 
 const CHECK_IN_COOLDOWN_MS = 2 * 60 * 60 * 1000; // 2 hours
 
@@ -32,11 +33,12 @@ const THC_ICONS = [
 import EntryIcon from './EntryIcon';
 
 export default function QuickEntry() {
-  const { 
-    favorites, addConsumption, addFavorite, 
-    isQuickEntryVisible, setQuickEntryVisible 
+  const {
+    favorites, addConsumption, addFavorite,
+    isQuickEntryVisible, setQuickEntryVisible
   } = useAppStore();
 
+  const navigation = useNavigation<any>();
   const [modalVisible, setModalVisible] = useState(false);
   const [customType, setCustomType] = useState<ConsumableType>('alcohol');
   const [customName, setCustomName] = useState('');
@@ -64,6 +66,11 @@ export default function QuickEntry() {
     scheduleHydrationReminder();
   };
 
+  const handleLongPress = () => {
+    setQuickEntryVisible(false);
+    navigation.navigate('ManageFavorites', { returnToQuickEntry: true });
+  };
+
   const switchType = (type: ConsumableType) => {
     setCustomType(type);
     setCustomName('');
@@ -81,7 +88,7 @@ export default function QuickEntry() {
     setCustomEmoji(emoji);
     setCustomDuration(duration);
     setCustomAmount(amount);
-    
+
     if (type === 'alcohol') {
       setCustomAbv(abvOrCals);
       setCustomCalories(''); // user can estimate
@@ -146,10 +153,10 @@ export default function QuickEntry() {
       <Modal visible={isQuickEntryVisible} transparent animationType="slide">
         <View style={styles.modalBg}>
           <View style={styles.modalCard}>
-            <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16}}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <Text style={styles.title}>Quick Entry</Text>
               <TouchableOpacity onPress={() => setQuickEntryVisible(false)}>
-                <Text style={{color: colors.textSecondary, fontSize: 24}}>✕</Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 24 }}>✕</Text>
               </TouchableOpacity>
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.scroll}>
@@ -161,6 +168,7 @@ export default function QuickEntry() {
                     handleQuickTap(fav);
                     setQuickEntryVisible(false);
                   }}
+                  onLongPress={handleLongPress}
                 >
                   <View style={{ marginBottom: 8 }}>
                     <EntryIcon iconString={fav.emoji} size={32} color={colors.text} />
@@ -174,6 +182,7 @@ export default function QuickEntry() {
                 <Text style={styles.cardTitle}>Custom</Text>
               </TouchableOpacity>
             </ScrollView>
+            <Text style={{ textAlign: 'center', color: colors.textSecondary, fontSize: 12, marginTop: 8 }}>Long press any favorite to manage</Text>
           </View>
         </View>
       </Modal>
@@ -181,7 +190,7 @@ export default function QuickEntry() {
       {/* Custom Entry Modal */}
       <Modal visible={modalVisible} transparent animationType="slide">
         <View style={styles.modalBg}>
-          <ScrollView contentContainerStyle={{flexGrow: 1, justifyContent: 'center'}}>
+          <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}>
             <View style={styles.modalCard}>
               <Text style={styles.modalTitle}>Custom Entry</Text>
 
@@ -201,7 +210,7 @@ export default function QuickEntry() {
               </View>
 
               <Text style={styles.inputLabel}>Presets</Text>
-              
+
               {customType === 'alcohol' ? (
                 <View style={styles.presetsRow}>
                   <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('alcohol', 'Beer', 'Ionicons:beer-outline', '12', '5', '45')}>
@@ -243,7 +252,7 @@ export default function QuickEntry() {
               )}
 
               <View style={styles.inputRow}>
-                <View style={{flex: 1}}>
+                <View style={{ flex: 1 }}>
                   <Text style={styles.inputLabel}>Name</Text>
                   <TextInput
                     style={styles.input}
@@ -256,7 +265,7 @@ export default function QuickEntry() {
               </View>
 
               <Text style={styles.inputLabel}>Select Icon</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginBottom: 16}}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
                 {(customType === 'alcohol' ? ALCOHOL_ICONS : THC_ICONS).map(icon => (
                   <TouchableOpacity
                     key={icon}
@@ -271,7 +280,7 @@ export default function QuickEntry() {
               {customType === 'alcohol' ? (
                 <>
                   <View style={styles.inputRow}>
-                    <View style={{flex: 1, marginRight: 8}}>
+                    <View style={{ flex: 1, marginRight: 8 }}>
                       <Text style={styles.inputLabel}>Volume (oz)</Text>
                       <TextInput
                         style={styles.input}
@@ -282,7 +291,7 @@ export default function QuickEntry() {
                         onChangeText={setCustomAmount}
                       />
                     </View>
-                    <View style={{flex: 1}}>
+                    <View style={{ flex: 1 }}>
                       <Text style={styles.inputLabel}>ABV %</Text>
                       <TextInput
                         style={styles.input}
@@ -295,7 +304,7 @@ export default function QuickEntry() {
                     </View>
                   </View>
                   <View style={styles.inputRow}>
-                    <View style={{flex: 1, marginRight: 8}}>
+                    <View style={{ flex: 1, marginRight: 8 }}>
                       <Text style={styles.inputLabel}>Duration (mins)</Text>
                       <TextInput
                         style={styles.input}
@@ -306,7 +315,7 @@ export default function QuickEntry() {
                         onChangeText={setCustomDuration}
                       />
                     </View>
-                    <View style={{flex: 1}}>
+                    <View style={{ flex: 1 }}>
                       <Text style={styles.inputLabel}>Calories (est)</Text>
                       <TextInput
                         style={styles.input}
@@ -321,7 +330,7 @@ export default function QuickEntry() {
                 </>
               ) : (
                 <View style={styles.inputRow}>
-                  <View style={{flex: 1, marginRight: 8}}>
+                  <View style={{ flex: 1, marginRight: 8 }}>
                     <Text style={styles.inputLabel}>Amount (mg)</Text>
                     <TextInput
                       style={styles.input}
@@ -332,7 +341,7 @@ export default function QuickEntry() {
                       onChangeText={setCustomAmount}
                     />
                   </View>
-                  <View style={{flex: 1}}>
+                  <View style={{ flex: 1 }}>
                     <Text style={styles.inputLabel}>Calories (est)</Text>
                     <TextInput
                       style={styles.input}
@@ -347,7 +356,7 @@ export default function QuickEntry() {
               )}
 
               <View style={styles.inputRow}>
-                <View style={{flex: 1}}>
+                <View style={{ flex: 1 }}>
                   <Text style={styles.inputLabel}>Consumed How Long Ago? (mins)</Text>
                   <TextInput
                     style={styles.input}

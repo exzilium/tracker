@@ -6,7 +6,7 @@ export const colors = {
   error: '#CF6679',
   warning: '#FFB74D',
   success: '#4CAF50',
-  text: '#FFFFFF',
+  text: '#F0F0F2',
   textSecondary: '#B3B3B3',
 };
 

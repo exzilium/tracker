@@ -19,21 +19,23 @@ export default function SessionDetailScreen({ route, navigation }: any) {
   // Dynamically recompute session data so edits take effect immediately
   const sessionConsumptions = useMemo(() => {
     return consumptions
-      .filter(c => c.timestamp >= rawSession.startTime && c.timestamp <= (rawSession.endTime || Date.now()))
+      .filter(c => c.sessionId === rawSession.id)
       .sort((a, b) => b.timestamp - a.timestamp); // newest first for the log list
-  }, [consumptions, rawSession.startTime, rawSession.endTime]);
+  }, [consumptions, rawSession.id]);
 
   // Wrap heavy O(N*M) calculation in useMemo to prevent running on every render
-  const { totalDrinks, totalTHC, totalCalories, peakBAC } = useMemo(() => {
+  const { totalDrinks, totalTHC, totalCalories, peakBAC, peakTHC } = useMemo(() => {
     let tDrinks = 0;
     let tTHC = 0;
     let tCals = 0;
     let mBAC = 0;
+    let mTHC = 0;
 
     const checkEnd = (rawSession.endTime || Date.now()) + (8 * 60 * 60 * 1000);
     for (let t = rawSession.startTime; t <= checkEnd; t += 5 * 60 * 1000) {
-      const { currentBAC } = getCurrentLevels(sessionConsumptions, profile, t);
+      const { currentBAC, currentTHC } = getCurrentLevels(sessionConsumptions, profile, t);
       if (currentBAC > mBAC) mBAC = currentBAC;
+      if (currentTHC > mTHC) mTHC = currentTHC;
     }
 
     sessionConsumptions.forEach(c => {
@@ -48,7 +50,8 @@ export default function SessionDetailScreen({ route, navigation }: any) {
       totalDrinks: Number(tDrinks.toFixed(1)),
       totalTHC: tTHC,
       totalCalories: tCals,
-      peakBAC: Number(mBAC.toFixed(3))
+      peakBAC: Number(mBAC.toFixed(3)),
+      peakTHC: Number(mTHC.toFixed(1))
     };
   }, [sessionConsumptions, profile, rawSession.startTime, rawSession.endTime]);
 
@@ -88,6 +91,11 @@ export default function SessionDetailScreen({ route, navigation }: any) {
         </View>
 
         <View style={styles.card}>
+          <Text style={styles.cardLabel}>Peak THC</Text>
+          <Text style={styles.cardValue}>{peakTHC}mg</Text>
+        </View>
+
+        <View style={[styles.card, { width: '100%' }]}>
           <Text style={styles.cardLabel}>Calories</Text>
           <Text style={styles.cardValue}>{totalCalories}</Text>
         </View>
@@ -134,11 +142,12 @@ export default function SessionDetailScreen({ route, navigation }: any) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.headerRow}>
+      <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Text style={styles.backBtnText}>← Back</Text>
         </TouchableOpacity>
-        <Text style={styles.header}>Session Details</Text>
+        <Text style={styles.title}>Session Details</Text>
+        <View style={{ width: 60 }} />
       </View>
 
       <FlatList
@@ -164,25 +173,27 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  headerRow: {
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 24,
-    paddingTop: 24,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.surface,
     marginBottom: 12,
   },
   backBtn: {
-    marginRight: 16,
-    padding: 8,
-    backgroundColor: colors.surface,
-    borderRadius: 8,
+    width: 60,
   },
   backBtnText: {
-    color: colors.text,
+    color: colors.primary,
+    ...typography.body,
     fontWeight: 'bold',
   },
-  header: {
-    ...typography.h1,
+  title: {
+    ...typography.h2,
+    fontSize: 20,
     color: colors.text,
   },
   content: {
@@ -197,15 +208,16 @@ const styles = StyleSheet.create({
   grid: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    flexWrap: 'wrap',
     paddingHorizontal: 20,
     marginBottom: 24,
+    gap: 8,
   },
   card: {
-    flex: 1,
+    width: '48%',
     backgroundColor: colors.surface,
     padding: 16,
     borderRadius: 12,
-    marginHorizontal: 4,
     alignItems: 'center',
   },
   cardLabel: {

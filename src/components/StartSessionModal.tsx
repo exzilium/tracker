@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     ...typography.h2,
-    fontSize: 18,
+    fontSize: 20,
     color: colors.text,
   },
   scrollContent: {

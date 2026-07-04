@@ -13,6 +13,7 @@ import EndSessionConfirmModal from '../components/EndSessionConfirmModal';
 import { registerForPushNotificationsAsync } from '../utils/notifications';
 import { getCurrentLevels, getPeaks } from '../utils/currentLevels';
 import { AppAlert } from '../utils/AppAlert';
+import FloatingMascot from '../components/FloatingMascot';
 
 const timeAgo = (ts: number) => {
   const diffMs = Date.now() - ts;
@@ -128,17 +129,13 @@ export default function DashboardScreen({ navigation }: any) {
     <SafeAreaView style={styles.container}>
       <ScrollView>
         <View style={styles.headerRow}>
-          <Text style={[styles.header, { letterSpacing: 1 }]}>Space Tether</Text>
+          <Text style={[styles.header, { letterSpacing: 1, fontSize: 42 }]}>Space Tether</Text>
         </View>
 
         {!activeSessionId ? (
           <View style={styles.emptyState}>
             <View style={styles.emptyStateContent}>
-              <Image 
-                source={require('../../assets/icon.png')} 
-                style={{ width: 120, height: 120, opacity: 0.15, marginBottom: 24 }} 
-                resizeMode="contain"
-              />
+              <FloatingMascot />
               <Text style={styles.emptyTitle}>Awaiting Launch...</Text>
               <Text style={styles.emptySubtitle}>Log your mood and intent before you start consuming.</Text>
               <TouchableOpacity style={styles.startBtn} onPress={() => setStartSessionVisible(true)}>

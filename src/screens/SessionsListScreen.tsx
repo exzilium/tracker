@@ -5,6 +5,7 @@ import { useAppStore, Consumption } from '../store';
 import { colors, typography } from '../theme';
 import { calculateStandardDrinks } from '../utils/mathEngine';
 import { getCurrentLevels } from '../utils/currentLevels';
+import EntryIcon from '../components/EntryIcon';
 
 export interface SessionData {
   id: string;
@@ -15,6 +16,7 @@ export interface SessionData {
   totalTHC: number;
   totalCalories: number;
   peakBAC: number;
+  peakTHC: number;
 }
 
 export default function SessionsListScreen({ navigation }: any) {
@@ -30,12 +32,14 @@ export default function SessionsListScreen({ navigation }: any) {
       let totalTHC = 0;
       let totalCalories = 0;
       let maxBAC = 0;
+      let maxTHC = 0;
 
-      // Calculate peak BAC by checking levels between startTime and endTime (or +8h if active)
+      // Calculate peak BAC and peak THC by checking levels between startTime and endTime (or +8h if active)
       const checkEnd = s.endTime ? s.endTime : Date.now() + (8 * 60 * 60 * 1000);
       for (let t = s.startTime; t <= checkEnd; t += 5 * 60 * 1000) {
-        const { currentBAC } = getCurrentLevels(sessionConsumptions, profile, t);
+        const { currentBAC, currentTHC } = getCurrentLevels(sessionConsumptions, profile, t);
         if (currentBAC > maxBAC) maxBAC = currentBAC;
+        if (currentTHC > maxTHC) maxTHC = currentTHC;
       }
 
       sessionConsumptions.forEach(c => {
@@ -55,6 +59,7 @@ export default function SessionsListScreen({ navigation }: any) {
         totalTHC,
         totalCalories,
         peakBAC: Number(maxBAC.toFixed(3)),
+        peakTHC: Number(maxTHC.toFixed(1)),
       };
     });
 
@@ -68,11 +73,12 @@ export default function SessionsListScreen({ navigation }: any) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.headerRow}>
+      <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Text style={styles.backBtnText}>← Back</Text>
         </TouchableOpacity>
-        <Text style={styles.header}>Your Sessions</Text>
+        <Text style={styles.title}>Your Sessions</Text>
+        <View style={{ width: 60 }} />
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
@@ -89,11 +95,33 @@ export default function SessionsListScreen({ navigation }: any) {
                 <Text style={styles.dateText}>{formatDate(session.startTime)}</Text>
                 <Text style={styles.countText}>{session.consumptions.length} items</Text>
               </View>
-              <View style={styles.statsRow}>
-                <Text style={styles.stat}>🍺 {session.totalDrinks} Drinks</Text>
-                {session.peakBAC > 0 && <Text style={styles.stat}>📈 {session.peakBAC} Peak BAC</Text>}
-                {session.totalTHC > 0 && <Text style={styles.stat}>🍃 {session.totalTHC}mg THC</Text>}
-                {session.totalCalories > 0 && <Text style={styles.stat}>🔥 {session.totalCalories} cals</Text>}
+              <View style={{ gap: 8 }}>
+                <View style={styles.statsRow}>
+                  <View style={[styles.statItem, { flex: 1 }]}>
+                    <EntryIcon iconString="Ionicons:beer-outline" size={14} color={colors.textSecondary} />
+                    <Text style={styles.stat}> {session.totalDrinks} Drinks</Text>
+                  </View>
+                  <View style={[styles.statItem, { flex: 1 }]}>
+                    <EntryIcon iconString="MaterialCommunityIcons:percent" size={14} color={colors.textSecondary} />
+                    <Text style={styles.stat}> {session.peakBAC} Peak BAC</Text>
+                  </View>
+                </View>
+                <View style={styles.statsRow}>
+                  <View style={[styles.statItem, { flex: 1 }]}>
+                    <EntryIcon iconString="Ionicons:leaf-outline" size={14} color={colors.textSecondary} />
+                    <Text style={styles.stat}> {session.totalTHC}mg THC</Text>
+                  </View>
+                  <View style={[styles.statItem, { flex: 1 }]}>
+                    <EntryIcon iconString="Ionicons:balloon-outline" size={14} color={colors.textSecondary} />
+                    <Text style={styles.stat}> {session.peakTHC}mg Peak THC</Text>
+                  </View>
+                </View>
+                <View style={styles.statsRow}>
+                  <View style={[styles.statItem, { flex: 1 }]}>
+                    <EntryIcon iconString="Ionicons:scale-outline" size={14} color={colors.textSecondary} />
+                    <Text style={styles.stat}> {session.totalCalories} cals</Text>
+                  </View>
+                </View>
               </View>
             </TouchableOpacity>
           ))
@@ -108,25 +136,27 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  headerRow: {
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 24,
-    paddingTop: 24,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.surface,
     marginBottom: 24,
   },
   backBtn: {
-    marginRight: 16,
-    padding: 8,
-    backgroundColor: colors.surface,
-    borderRadius: 8,
+    width: 60,
   },
   backBtnText: {
-    color: colors.text,
+    color: colors.primary,
+    ...typography.body,
     fontWeight: 'bold',
   },
-  header: {
-    ...typography.h1,
+  title: {
+    ...typography.h2,
+    fontSize: 20,
     color: colors.text,
   },
   content: {
@@ -159,10 +189,16 @@ const styles = StyleSheet.create({
   },
   statsRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 16,
+  },
+  statItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   stat: {
     ...typography.body,
     color: colors.textSecondary,
+    fontSize: 14,
   }
 });

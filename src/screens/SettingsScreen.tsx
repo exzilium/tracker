@@ -38,7 +38,7 @@ export default function SettingsScreen({ navigation }: any) {
       Animated.timing(flyAnim, {
         toValue: -800,
         duration: 800,
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== 'web',
       }).start(() => {
         setTimeout(() => {
           flyAnim.setValue(0);

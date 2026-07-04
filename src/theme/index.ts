@@ -1,11 +1,11 @@
 export const colors = {
   background: '#121212',
   surface: '#1E1E1E',
-  primary: '#BBAACC',
-  secondary: '#A7D7C5',
-  error: '#E5989B',
-  warning: '#FAD7A1',
-  success: '#A9DFBF',
+  primary: '#BB86FC',
+  secondary: '#03DAC6',
+  error: '#CF6679',
+  warning: '#FFB74D',
+  success: '#4CAF50',
   text: '#F0F0F2',
   textSecondary: '#B3B3B3',
 };

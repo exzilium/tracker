@@ -90,11 +90,11 @@ export default function DashboardScreen({ navigation }: any) {
     }
   }, [currentSessionLogs, profile, activeSession, activeSessionId, endSession]);
 
-  // Recalculate levels whenever current session logs change
+  // Recalculate levels whenever current session logs change or time passes
   useEffect(() => {
     setLevels(getCurrentLevels(currentSessionLogs, profile));
     setPeaks(getPeaks(currentSessionLogs, profile));
-  }, [currentSessionLogs, profile]);
+  }, [currentSessionLogs, profile, lastRefreshed]);
 
   const handleDelete = (id: string, name: string) => {
     AppAlert(

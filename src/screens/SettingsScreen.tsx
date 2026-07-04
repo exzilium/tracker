@@ -60,8 +60,14 @@ export default function SettingsScreen({ navigation }: any) {
       finalHeight = (ft * 12) + inc;
     }
 
+    const weight = parseFloat(weightStr) || 0;
+    if (weight <= 0) {
+      alert("Please enter a valid weight. This is required for BAC calculations.");
+      return;
+    }
+
     setProfile({
-      weight: parseFloat(weightStr) || 0,
+      weight,
       height: finalHeight,
       maxBAC: parseFloat(bacLimitStr) || 0.08,
       maxTHC: parseFloat(thcLimitStr) || 10,

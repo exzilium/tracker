@@ -64,8 +64,14 @@ export default function OnboardingScreen() {
       finalHeight = (ft * 12) + inc;
     }
 
+    const weight = parseFloat(weightStr) || 0;
+    if (weight <= 0) {
+      alert("Please enter a valid weight. This is required for BAC calculations.");
+      return;
+    }
+
     setProfile({
-      weight: parseFloat(weightStr) || 0,
+      weight,
       height: finalHeight,
     });
     completeOnboarding();

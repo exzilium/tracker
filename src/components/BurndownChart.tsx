@@ -103,7 +103,12 @@ export default function BurndownChart({ consumptionsOverride, startTimeOverride,
   // Generate Grid Lines
   const gridLines = [];
   const labels = [];
-  const minorTickInterval = timeWindowHours === 1 ? 15 : 30; // mins
+  let minorTickInterval = 60; // mins
+  if (timeWindowHours <= 1) minorTickInterval = 15;
+  else if (timeWindowHours <= 4) minorTickInterval = 30;
+  else if (timeWindowHours <= 8) minorTickInterval = 60;
+  else if (timeWindowHours <= 12) minorTickInterval = 120; // 2 hours
+  else minorTickInterval = 240; // 4 hours
 
   const currentMinutes = new Date(now).getMinutes();
   const minutesToFirstTick = (minorTickInterval - (currentMinutes % minorTickInterval)) % minorTickInterval;
@@ -128,7 +133,13 @@ export default function BurndownChart({ consumptionsOverride, startTimeOverride,
       />
     );
 
-    if (isHour && x > 20 && x < CHART_WIDTH - 20) {
+    // Only show labels for intervals based on density
+    const shouldShowLabel = 
+      (timeWindowHours <= 4 && (m % 60 === 0)) || // Every hour
+      (timeWindowHours > 4 && timeWindowHours <= 12 && (m % 120 === 0)) || // Every 2 hours
+      (timeWindowHours > 12 && (m % 240 === 0)); // Every 4 hours
+
+    if (shouldShowLabel && x > 20 && x < CHART_WIDTH - 20) {
       labels.push(
         <SvgText
           key={`label-${m}`}
@@ -185,7 +196,7 @@ export default function BurndownChart({ consumptionsOverride, startTimeOverride,
       <View style={styles.headerRow}>
         <Text style={styles.title}>Projection</Text>
         <View style={styles.toggleGroup}>
-          {[1, 4, 8].map(hrs => (
+          {[2, 4, 8, 12, 16].map(hrs => (
             <TouchableOpacity 
               key={hrs}
               style={[styles.toggleBtn, timeWindowHours === hrs && styles.toggleBtnActive]}

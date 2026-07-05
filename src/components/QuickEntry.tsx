@@ -41,6 +41,7 @@ export default function QuickEntry() {
   const navigation = useNavigation<any>();
   const [modalVisible, setModalVisible] = useState(false);
   const [customType, setCustomType] = useState<ConsumableType>('alcohol');
+  const [isMixedMode, setIsMixedMode] = useState(false);
   const [customName, setCustomName] = useState('');
   const [customEmoji, setCustomEmoji] = useState(ALCOHOL_ICONS[0]);
   const [customAmount, setCustomAmount] = useState('');
@@ -73,17 +74,19 @@ export default function QuickEntry() {
 
   const switchType = (type: ConsumableType) => {
     setCustomType(type);
+    setIsMixedMode(false);
     setCustomName('');
-    setCustomEmoji(type === 'alcohol' ? ALCOHOL_ICONS[0] : THC_ICONS[0]);
+    setCustomEmoji(type === 'thc' ? THC_ICONS[0] : ALCOHOL_ICONS[0]);
     setCustomAmount('');
     setCustomAbv('');
-    setCustomDuration(type === 'alcohol' ? '45' : '0');
+    setCustomDuration(type === 'thc' ? '0' : '45');
     setCustomCalories('');
     setCustomMinutesAgo('0');
   };
 
-  const applyPreset = (type: ConsumableType, name: string, emoji: string, amount: string, abvOrCals: string, duration: string) => {
+  const applyPreset = (type: ConsumableType, name: string, emoji: string, amount: string, abvOrCals: string, duration: string, mixedMode = false) => {
     setCustomType(type);
+    setIsMixedMode(mixedMode);
     setCustomName(name);
     setCustomEmoji(emoji);
     setCustomDuration(duration);
@@ -99,8 +102,9 @@ export default function QuickEntry() {
 
   const handleCustomSave = () => {
     const isAlcohol = customType === 'alcohol';
-    const amount = parseFloat(customAmount);
-    const abv = parseFloat(customAbv);
+    const isMixed = isAlcohol && isMixedMode;
+    let amount = parseFloat(customAmount);
+    let abv = parseFloat(customAbv);
     const duration = parseFloat(customDuration);
     const cals = parseFloat(customCalories);
     const minsAgo = parseFloat(customMinutesAgo) || 0;
@@ -110,11 +114,18 @@ export default function QuickEntry() {
       return;
     }
 
-    if (isAlcohol) {
+    if (isAlcohol && !isMixed) {
       if (isNaN(amount) || isNaN(abv) || isNaN(duration)) {
         AppAlert('Missing Fields', 'Please provide volume, ABV, and duration.');
         return;
       }
+    } else if (isMixed) {
+      if (isNaN(amount) || isNaN(duration)) {
+        AppAlert('Missing Fields', 'Please provide number of shots and duration.');
+        return;
+      }
+      abv = isNaN(abv) ? 40 : abv;
+      amount = amount * 1.5; // convert shots to volume
     } else {
       if (isNaN(amount)) {
         AppAlert('Missing Fields', 'Please provide THC amount in mg.');
@@ -213,38 +224,38 @@ export default function QuickEntry() {
 
               {customType === 'alcohol' ? (
                 <View style={styles.presetsRow}>
-                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('alcohol', 'Beer', 'Ionicons:beer-outline', '12', '5', '45')}>
+                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('alcohol', 'Beer', 'Ionicons:beer-outline', '12', '5', '45', false)}>
                     <View style={styles.presetEmoji}><EntryIcon iconString="Ionicons:beer-outline" size={24} color={colors.text} /></View>
                     <Text style={styles.presetText}>Beer</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('alcohol', 'Wine', 'Ionicons:wine', '5', '12', '45')}>
+                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('alcohol', 'Wine', 'Ionicons:wine', '5', '12', '45', false)}>
                     <View style={styles.presetEmoji}><EntryIcon iconString="Ionicons:wine" size={24} color={colors.text} /></View>
                     <Text style={styles.presetText}>Wine</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('alcohol', 'Mixed Drink', 'FontAwesome5:cocktail', '8', '10', '45')}>
+                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('alcohol', 'Mixed', 'FontAwesome5:cocktail', '1', '40', '45', true)}>
                     <View style={styles.presetEmoji}><EntryIcon iconString="FontAwesome5:cocktail" size={24} color={colors.text} /></View>
                     <Text style={styles.presetText}>Mixed</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('alcohol', 'Shot', 'FontAwesome5:glass-whiskey', '1.5', '40', '0')}>
+                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('alcohol', 'Shot', 'FontAwesome5:glass-whiskey', '1.5', '40', '0', false)}>
                     <View style={styles.presetEmoji}><EntryIcon iconString="FontAwesome5:glass-whiskey" size={24} color={colors.text} /></View>
                     <Text style={styles.presetText}>Shot</Text>
                   </TouchableOpacity>
                 </View>
               ) : (
                 <View style={styles.presetsRow}>
-                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('thc', 'Gummy (10mg)', 'FontAwesome5:cookie-bite', '10', '20', '0')}>
+                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('thc', 'Gummy (10mg)', 'FontAwesome5:cookie-bite', '10', '20', '0', false)}>
                     <View style={styles.presetEmoji}><EntryIcon iconString="FontAwesome5:cookie-bite" size={24} color={colors.text} /></View>
                     <Text style={styles.presetText}>10mg</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('thc', 'Gummy (5mg)', 'FontAwesome5:cookie-bite', '5', '10', '0')}>
+                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('thc', 'Gummy (5mg)', 'FontAwesome5:cookie-bite', '5', '10', '0', false)}>
                     <View style={styles.presetEmoji}><EntryIcon iconString="FontAwesome5:cookie-bite" size={24} color={colors.text} /></View>
                     <Text style={styles.presetText}>5mg</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('thc', 'Gummy (2.5mg)', 'FontAwesome5:cookie-bite', '2.5', '5', '0')}>
+                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('thc', 'Gummy (2.5mg)', 'FontAwesome5:cookie-bite', '2.5', '5', '0', false)}>
                     <View style={styles.presetEmoji}><EntryIcon iconString="FontAwesome5:cookie-bite" size={24} color={colors.text} /></View>
                     <Text style={styles.presetText}>2.5mg</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('thc', 'Puff (2mg)', 'FontAwesome5:wind', '2', '0', '0')}>
+                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('thc', 'Puff (2mg)', 'FontAwesome5:wind', '2', '0', '0', false)}>
                     <View style={styles.presetEmoji}><EntryIcon iconString="FontAwesome5:wind" size={24} color={colors.text} /></View>
                     <Text style={styles.presetText}>Puff</Text>
                   </TouchableOpacity>
@@ -266,7 +277,7 @@ export default function QuickEntry() {
 
               <Text style={styles.inputLabel}>Select Icon</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
-                {(customType === 'alcohol' ? ALCOHOL_ICONS : THC_ICONS).map(icon => (
+                {(customType === 'thc' ? THC_ICONS : ALCOHOL_ICONS).map(icon => (
                   <TouchableOpacity
                     key={icon}
                     style={[styles.iconPickerBtn, customEmoji === icon && styles.iconPickerBtnActive]}
@@ -278,56 +289,109 @@ export default function QuickEntry() {
               </ScrollView>
 
               {customType === 'alcohol' ? (
-                <>
-                  <View style={styles.inputRow}>
-                    <View style={{ flex: 1, marginRight: 8 }}>
-                      <Text style={styles.inputLabel}>Volume (oz)</Text>
-                      <TextInput
-                        style={styles.input}
-                        placeholder="oz"
-                        placeholderTextColor={colors.textSecondary}
-                        keyboardType="numeric"
-                        value={customAmount}
-                        onChangeText={setCustomAmount}
-                      />
+                isMixedMode ? (
+                  <>
+                    <View style={styles.inputRow}>
+                      <View style={{ flex: 1, marginRight: 8 }}>
+                        <Text style={styles.inputLabel}>Number of Shots</Text>
+                        <TextInput
+                          style={styles.input}
+                          placeholder="e.g. 1"
+                          placeholderTextColor={colors.textSecondary}
+                          keyboardType="numeric"
+                          value={customAmount}
+                          onChangeText={setCustomAmount}
+                        />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.inputLabel}>Liquor ABV %</Text>
+                        <TextInput
+                          style={styles.input}
+                          placeholder="40"
+                          placeholderTextColor={colors.textSecondary}
+                          keyboardType="numeric"
+                          value={customAbv}
+                          onChangeText={setCustomAbv}
+                        />
+                      </View>
                     </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.inputLabel}>ABV %</Text>
-                      <TextInput
-                        style={styles.input}
-                        placeholder="%"
-                        placeholderTextColor={colors.textSecondary}
-                        keyboardType="numeric"
-                        value={customAbv}
-                        onChangeText={setCustomAbv}
-                      />
+                    <View style={styles.inputRow}>
+                      <View style={{ flex: 1, marginRight: 8 }}>
+                        <Text style={styles.inputLabel}>Duration (mins)</Text>
+                        <TextInput
+                          style={styles.input}
+                          placeholder="mins"
+                          placeholderTextColor={colors.textSecondary}
+                          keyboardType="numeric"
+                          value={customDuration}
+                          onChangeText={setCustomDuration}
+                        />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.inputLabel}>Calories (est)</Text>
+                        <TextInput
+                          style={styles.input}
+                          placeholder="kcal"
+                          placeholderTextColor={colors.textSecondary}
+                          keyboardType="numeric"
+                          value={customCalories}
+                          onChangeText={setCustomCalories}
+                        />
+                      </View>
                     </View>
-                  </View>
-                  <View style={styles.inputRow}>
-                    <View style={{ flex: 1, marginRight: 8 }}>
-                      <Text style={styles.inputLabel}>Duration (mins)</Text>
-                      <TextInput
-                        style={styles.input}
-                        placeholder="mins"
-                        placeholderTextColor={colors.textSecondary}
-                        keyboardType="numeric"
-                        value={customDuration}
-                        onChangeText={setCustomDuration}
-                      />
+                  </>
+                ) : (
+                  <>
+                    <View style={styles.inputRow}>
+                      <View style={{ flex: 1, marginRight: 8 }}>
+                        <Text style={styles.inputLabel}>Volume (oz)</Text>
+                        <TextInput
+                          style={styles.input}
+                          placeholder="oz"
+                          placeholderTextColor={colors.textSecondary}
+                          keyboardType="numeric"
+                          value={customAmount}
+                          onChangeText={setCustomAmount}
+                        />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.inputLabel}>ABV %</Text>
+                        <TextInput
+                          style={styles.input}
+                          placeholder="%"
+                          placeholderTextColor={colors.textSecondary}
+                          keyboardType="numeric"
+                          value={customAbv}
+                          onChangeText={setCustomAbv}
+                        />
+                      </View>
                     </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.inputLabel}>Calories (est)</Text>
-                      <TextInput
-                        style={styles.input}
-                        placeholder="kcal"
-                        placeholderTextColor={colors.textSecondary}
-                        keyboardType="numeric"
-                        value={customCalories}
-                        onChangeText={setCustomCalories}
-                      />
+                    <View style={styles.inputRow}>
+                      <View style={{ flex: 1, marginRight: 8 }}>
+                        <Text style={styles.inputLabel}>Duration (mins)</Text>
+                        <TextInput
+                          style={styles.input}
+                          placeholder="mins"
+                          placeholderTextColor={colors.textSecondary}
+                          keyboardType="numeric"
+                          value={customDuration}
+                          onChangeText={setCustomDuration}
+                        />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.inputLabel}>Calories (est)</Text>
+                        <TextInput
+                          style={styles.input}
+                          placeholder="kcal"
+                          placeholderTextColor={colors.textSecondary}
+                          keyboardType="numeric"
+                          value={customCalories}
+                          onChangeText={setCustomCalories}
+                        />
+                      </View>
                     </View>
-                  </View>
-                </>
+                  </>
+                )
               ) : (
                 <View style={styles.inputRow}>
                   <View style={{ flex: 1, marginRight: 8 }}>

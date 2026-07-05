@@ -97,8 +97,7 @@ export default function StartSessionModal() {
           </View>
           
           <TouchableOpacity style={styles.customBtn} onPress={handleCustomStart}>
-            <Feather name="plus-circle" size={20} color={colors.primary} style={{ marginRight: 8 }} />
-            <Text style={styles.customBtnText}>Create Custom Item...</Text>
+            <Text style={styles.customBtnText}>+ Add Custom Entry</Text>
           </TouchableOpacity>
         </ScrollView>
 

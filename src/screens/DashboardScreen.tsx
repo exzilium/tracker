@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, AppState, Platform, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAppStore, Consumption } from '../store';
 import { colors, typography } from '../theme';
 import DangerMeter from '../components/DangerMeter';
@@ -109,10 +110,25 @@ export default function DashboardScreen({ navigation }: any) {
     );
   };
 
-  const handleMarkFinished = (item: Consumption) => {
-    const elapsedMins = (Date.now() - item.timestamp) / 60000;
-    const { updateConsumption } = useAppStore.getState();
-    updateConsumption(item.id, { durationMins: Math.max(0, Math.floor(elapsedMins)) });
+  const handleMarkFinishedConfirm = (item: Consumption) => {
+    const elapsedMins = Math.max(0, Math.floor((Date.now() - item.timestamp) / 60000));
+    const oldDuration = item.durationMins || 0;
+    
+    if (elapsedMins === oldDuration) return;
+
+    const actionText = elapsedMins > oldDuration ? "Extend duration" : "Finish early";
+
+    AppAlert(
+      "Update Duration",
+      `${actionText} for ${item.name}? It will change from ${oldDuration}m to ${elapsedMins}m.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Update", onPress: () => {
+           const { updateConsumption } = useAppStore.getState();
+           updateConsumption(item.id, { durationMins: elapsedMins });
+        }}
+      ]
+    );
   };
 
   const confirmEndSession = () => {
@@ -196,9 +212,19 @@ export default function DashboardScreen({ navigation }: any) {
                           )}
                         </View>
                         <View style={styles.actionsRow}>
-                          {!isFinished && (
-                            <TouchableOpacity style={styles.finishBtn} onPress={() => handleMarkFinished(item)}>
-                              <Text style={styles.finishBtnText}>✓</Text>
+                          {(item.durationMins || 0) > 0 && (
+                            <TouchableOpacity 
+                              style={[
+                                styles.finishBtn, 
+                                isFinished ? { backgroundColor: 'rgba(255,255,255,0.1)', width: 32 } : {}
+                              ]} 
+                              onPress={() => handleMarkFinishedConfirm(item)}
+                            >
+                              {isFinished ? (
+                                <MaterialCommunityIcons name="timer-sync-outline" size={16} color={colors.textSecondary} />
+                              ) : (
+                                <Text style={styles.finishBtnText}>✓</Text>
+                              )}
                             </TouchableOpacity>
                           )}
                           <TouchableOpacity style={styles.actionBtn} onPress={() => setEditingLog(item)}>

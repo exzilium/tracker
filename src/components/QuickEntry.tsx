@@ -528,7 +528,9 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   addCustomBtn: {
-    backgroundColor: colors.primary,
+    backgroundColor: 'rgba(187, 134, 252, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(187, 134, 252, 0.2)',
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
@@ -536,8 +538,8 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   addCustomBtnText: {
-    ...typography.h3,
-    color: colors.background,
+    ...typography.body,
+    color: colors.primary,
     fontWeight: 'bold',
   },
   cardIcon: {

@@ -42,6 +42,7 @@ export default function DashboardScreen({ navigation }: any) {
   const [editingLog, setEditingLog] = useState<Consumption | null>(null);
   const [endSessionConfirmVisible, setEndSessionConfirmVisible] = useState(false);
   const [lastRefreshed, setLastRefreshed] = useState(Date.now());
+  const [autoClosePrompted, setAutoClosePrompted] = useState<string | null>(null);
 
   useEffect(() => {
     registerForPushNotificationsAsync();
@@ -77,19 +78,19 @@ export default function DashboardScreen({ navigation }: any) {
     if (activeSessionId && activeSession && currentSessionLogs.length > 0) {
       const { currentBAC, currentTHC } = getCurrentLevels(currentSessionLogs, profile);
       
-      // Auto end session if completely sober and the last log is > 1 hour old (prevents instant close on tiny doses)
-      if (currentBAC <= 0 && currentTHC <= 0) {
-        if (Date.now() - currentSessionLogs[0].timestamp > 60 * 60 * 1000) {
-           endSession();
+      const isCompletelySober = currentBAC <= 0 && currentTHC <= 0;
+      const isInactiveFor4Hours = Date.now() - currentSessionLogs[0].timestamp > 4 * 60 * 60 * 1000;
+      const isOver24Hours = Date.now() - activeSession.startTime > 24 * 60 * 60 * 1000;
+      
+      // Auto prompt to end session if completely sober and inactive for 4 hours, or if session is over 24 hours
+      if ((isCompletelySober && isInactiveFor4Hours) || isOver24Hours) {
+        if (autoClosePrompted !== activeSessionId) {
+          setEndSessionConfirmVisible(true);
+          setAutoClosePrompted(activeSessionId);
         }
       }
-      
-      // Failsafe: if the session started over 24 hours ago, force end
-      if (Date.now() - activeSession.startTime > 24 * 60 * 60 * 1000) {
-        endSession();
-      }
     }
-  }, [currentSessionLogs, profile, activeSession, activeSessionId, endSession]);
+  }, [currentSessionLogs, profile, activeSession, activeSessionId, autoClosePrompted]);
 
   // Recalculate levels whenever current session logs change or time passes
   useEffect(() => {

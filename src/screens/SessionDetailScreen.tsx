@@ -24,19 +24,33 @@ export default function SessionDetailScreen({ route, navigation }: any) {
   }, [consumptions, rawSession.id]);
 
   // Wrap heavy O(N*M) calculation in useMemo to prevent running on every render
-  const { totalDrinks, totalTHC, totalCalories, peakBAC, peakTHC } = useMemo(() => {
+  const { totalDrinks, totalTHC, totalCalories, peakBAC, peakTHC, chartStartTime, fixedTimeWindowHours } = useMemo(() => {
     let tDrinks = 0;
     let tTHC = 0;
     let tCals = 0;
     let mBAC = 0;
     let mTHC = 0;
 
+    let cStartTime = rawSession.startTime;
+    if (sessionConsumptions.length > 0) {
+      cStartTime = sessionConsumptions[sessionConsumptions.length - 1].timestamp - (30 * 60 * 1000);
+    }
+
+    let lastActiveTime = cStartTime;
+
     const checkEnd = (rawSession.endTime || Date.now()) + (8 * 60 * 60 * 1000);
-    for (let t = rawSession.startTime; t <= checkEnd; t += 5 * 60 * 1000) {
+    for (let t = cStartTime; t <= checkEnd; t += 5 * 60 * 1000) {
       const { currentBAC, currentTHC } = getCurrentLevels(sessionConsumptions, profile, t);
       if (currentBAC > mBAC) mBAC = currentBAC;
       if (currentTHC > mTHC) mTHC = currentTHC;
+      if (currentBAC > 0 || currentTHC > 0) {
+        lastActiveTime = t;
+      }
     }
+
+    let chartEndTime = lastActiveTime + (30 * 60 * 1000);
+    let durationHours = Math.ceil((chartEndTime - cStartTime) / (60 * 60 * 1000));
+    if (durationHours < 2) durationHours = 2; // minimum 2h window
 
     sessionConsumptions.forEach(c => {
       if (c.type === 'alcohol' && c.volumeOz && c.abvPercent) {
@@ -51,7 +65,9 @@ export default function SessionDetailScreen({ route, navigation }: any) {
       totalTHC: tTHC,
       totalCalories: tCals,
       peakBAC: Number(mBAC.toFixed(3)),
-      peakTHC: Number(mTHC.toFixed(1))
+      peakTHC: Number(mTHC.toFixed(1)),
+      chartStartTime: cStartTime,
+      fixedTimeWindowHours: durationHours
     };
   }, [sessionConsumptions, profile, rawSession.startTime, rawSession.endTime]);
 
@@ -104,7 +120,9 @@ export default function SessionDetailScreen({ route, navigation }: any) {
       {/* Historical Burndown Chart */}
       <BurndownChart 
         consumptionsOverride={sessionConsumptions} 
-        startTimeOverride={rawSession.startTime} 
+        startTimeOverride={chartStartTime} 
+        fixedTimeWindowHours={fixedTimeWindowHours}
+        hideTimeToggles={true}
       />
 
       <Text style={styles.logHeader}>Consumption Log</Text>

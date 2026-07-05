@@ -26,13 +26,18 @@ interface BurndownChartProps {
   consumptionsOverride?: any[];
   startTimeOverride?: number;
   lastRefreshed?: number;
+  fixedTimeWindowHours?: number;
+  hideTimeToggles?: boolean;
 }
 
-export default function BurndownChart({ consumptionsOverride, startTimeOverride, lastRefreshed }: BurndownChartProps) {
+export default function BurndownChart({ consumptionsOverride, startTimeOverride, lastRefreshed, fixedTimeWindowHours, hideTimeToggles }: BurndownChartProps) {
   const storeConsumptions = useAppStore(state => state.consumptions);
   const profile = useAppStore(state => state.profile);
   
   const consumptions = consumptionsOverride || storeConsumptions;
+  const [timeWindowHours, setTimeWindowHours] = useState(8);
+  const activeTimeWindowHours = fixedTimeWindowHours || timeWindowHours;
+
   const chartStartTime = useMemo(() => {
     if (startTimeOverride) return startTimeOverride;
     
@@ -40,21 +45,19 @@ export default function BurndownChart({ consumptionsOverride, startTimeOverride,
     const activeLogs = storeConsumptions.filter(c => Date.now() - c.timestamp < 12 * 60 * 60 * 1000);
     if (activeLogs.length > 0) {
       const oldest = Math.min(...activeLogs.map(c => c.timestamp));
-      // Give it 30 mins padding before the first log
-      return oldest - (30 * 60 * 1000);
+      const paddingMins = activeTimeWindowHours <= 2 ? 15 : 30;
+      return oldest - (paddingMins * 60 * 1000);
     }
     
     // No active session, default to 1 hour ago
     return Date.now() - (60 * 60 * 1000);
-  }, [startTimeOverride, storeConsumptions]);
-
-  const [timeWindowHours, setTimeWindowHours] = useState(8);
+  }, [startTimeOverride, storeConsumptions, activeTimeWindowHours]);
 
   const [scrubIdx, setScrubIdx] = useState<number | null>(null);
 
   useEffect(() => {
     setScrubIdx(null);
-  }, [timeWindowHours]);
+  }, [activeTimeWindowHours]);
 
   const maxBAC = profile.maxBAC || 0.08;
   const maxTHC = profile.maxTHC || 10;
@@ -65,7 +68,7 @@ export default function BurndownChart({ consumptionsOverride, startTimeOverride,
     const thcPoints = [];
     const now = chartStartTime;
     
-    const totalMinutes = timeWindowHours * 60;
+    const totalMinutes = activeTimeWindowHours * 60;
     const numPoints = totalMinutes / 5;
 
     for (let i = 0; i <= numPoints; i++) {
@@ -75,7 +78,7 @@ export default function BurndownChart({ consumptionsOverride, startTimeOverride,
       thcPoints.push(levels.currentTHC);
     }
     return { bacPoints, thcPoints, numPoints, now };
-  }, [consumptions, profile, timeWindowHours, chartStartTime]);
+  }, [consumptions, profile, activeTimeWindowHours, chartStartTime]);
 
   const { bacPoints, thcPoints, numPoints, now } = chartData;
   
@@ -104,15 +107,15 @@ export default function BurndownChart({ consumptionsOverride, startTimeOverride,
   const gridLines = [];
   const labels = [];
   let minorTickInterval = 60; // mins
-  if (timeWindowHours <= 1) minorTickInterval = 15;
-  else if (timeWindowHours <= 4) minorTickInterval = 30;
-  else if (timeWindowHours <= 8) minorTickInterval = 60;
-  else if (timeWindowHours <= 12) minorTickInterval = 120; // 2 hours
+  if (activeTimeWindowHours <= 1) minorTickInterval = 15;
+  else if (activeTimeWindowHours <= 4) minorTickInterval = 30;
+  else if (activeTimeWindowHours <= 8) minorTickInterval = 60;
+  else if (activeTimeWindowHours <= 12) minorTickInterval = 120; // 2 hours
   else minorTickInterval = 240; // 4 hours
 
   const currentMinutes = new Date(now).getMinutes();
   const minutesToFirstTick = (minorTickInterval - (currentMinutes % minorTickInterval)) % minorTickInterval;
-  const totalMinutes = timeWindowHours * 60;
+  const totalMinutes = activeTimeWindowHours * 60;
 
   for (let m = minutesToFirstTick; m <= totalMinutes; m += minorTickInterval) {
     const tickTime = now + (m * 60000);
@@ -135,16 +138,16 @@ export default function BurndownChart({ consumptionsOverride, startTimeOverride,
 
     // Only show labels for intervals based on density
     const shouldShowLabel = 
-      (timeWindowHours <= 4 && (m % 60 === 0)) || // Every hour
-      (timeWindowHours > 4 && timeWindowHours <= 12 && (m % 120 === 0)) || // Every 2 hours
-      (timeWindowHours > 12 && (m % 240 === 0)); // Every 4 hours
+      (activeTimeWindowHours <= 4 && (m % 60 === 0)) || // Every hour
+      (activeTimeWindowHours > 4 && activeTimeWindowHours <= 12 && (m % 120 === 0)) || // Every 2 hours
+      (activeTimeWindowHours > 12 && (m % 240 === 0)); // Every 4 hours
 
-    if (shouldShowLabel && x > 20 && x < CHART_WIDTH - 20) {
+    if (shouldShowLabel && x > 35 && x < CHART_WIDTH - 35) {
       labels.push(
         <SvgText
           key={`label-${m}`}
           x={x}
-          y={CHART_HEIGHT - 10}
+          y={CHART_HEIGHT + 15}
           fill={colors.textSecondary}
           fontSize="10"
           fontFamily="System"
@@ -195,23 +198,25 @@ export default function BurndownChart({ consumptionsOverride, startTimeOverride,
     <View style={styles.container}>
       <View style={styles.headerRow}>
         <Text style={styles.title}>Projection</Text>
-        <View style={styles.toggleGroup}>
-          {[2, 4, 8, 12, 16].map(hrs => (
-            <TouchableOpacity 
-              key={hrs}
-              style={[styles.toggleBtn, timeWindowHours === hrs && styles.toggleBtnActive]}
-              onPress={() => setTimeWindowHours(hrs)}
-            >
-              <Text style={[styles.toggleText, timeWindowHours === hrs && styles.toggleTextActive]}>
-                {hrs}h
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        {!hideTimeToggles && (
+          <View style={styles.toggleGroup}>
+            {[2, 4, 8, 12, 16].map(hrs => (
+              <TouchableOpacity 
+                key={hrs}
+                style={[styles.toggleBtn, timeWindowHours === hrs && styles.toggleBtnActive]}
+                onPress={() => setTimeWindowHours(hrs)}
+              >
+                <Text style={[styles.toggleText, timeWindowHours === hrs && styles.toggleTextActive]}>
+                  {hrs}h
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
       </View>
 
       <View style={styles.chartContainer}>
-        <Svg width={CHART_WIDTH} height={CHART_HEIGHT}>
+        <Svg width={CHART_WIDTH} height={CHART_HEIGHT + 24}>
           <Defs>
             <LinearGradient id="gradBac" x1="0" y1="0" x2="0" y2="1">
               <Stop offset="0" stopColor={colors.primary} stopOpacity="0.5" />
@@ -253,27 +258,38 @@ export default function BurndownChart({ consumptionsOverride, startTimeOverride,
           
           {labels}
 
+          {/* Start and End labels */}
+          <SvgText
+            x={5}
+            y={CHART_HEIGHT + 15}
+            fill={colors.textSecondary}
+            fontSize="10"
+            fontFamily="System"
+            textAnchor="start"
+            fontWeight="bold"
+          >
+            {formatTime(now, false)}
+          </SvgText>
+          <SvgText
+            x={CHART_WIDTH - 5}
+            y={CHART_HEIGHT + 15}
+            fill={colors.textSecondary}
+            fontSize="10"
+            fontFamily="System"
+            textAnchor="end"
+            fontWeight="bold"
+          >
+            {formatTime(now + (activeTimeWindowHours * 60 * 60 * 1000), false)}
+          </SvgText>
+
           {/* NOW Line */}
           {nowX >= 0 && nowX <= CHART_WIDTH && (
-            <>
-              <SvgLine 
-                x1={nowX} y1={0} x2={nowX} y2={CHART_HEIGHT}
-                stroke={colors.textSecondary}
-                strokeWidth={1.5}
-                strokeDasharray="4,4"
-              />
-              <SvgText 
-                x={nowX < CHART_WIDTH - 30 ? nowX + 4 : nowX - 30} 
-                y={15} 
-                fill={colors.textSecondary} 
-                fontSize="10" 
-                fontFamily="System"
-                opacity={0.8} 
-                fontWeight="bold"
-              >
-                NOW
-              </SvgText>
-            </>
+            <SvgLine 
+              x1={nowX} y1={0} x2={nowX} y2={CHART_HEIGHT}
+              stroke={colors.textSecondary}
+              strokeWidth={1.5}
+              strokeDasharray="4,4"
+            />
           )}
 
           {/* Scrubber Line */}
@@ -361,7 +377,7 @@ const styles = StyleSheet.create({
     color: colors.background,
   },
   chartContainer: {
-    height: CHART_HEIGHT,
+    height: CHART_HEIGHT + 24,
     backgroundColor: 'transparent',
     position: 'relative',
   },

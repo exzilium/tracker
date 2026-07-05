@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, TextInput, Alert } from 'react-native';
 import { useAppStore, FavoriteItem, ConsumableType } from '../store';
 import { colors, typography } from '../theme';
@@ -34,9 +34,26 @@ import EntryIcon from './EntryIcon';
 
 export default function QuickEntry() {
   const {
-    favorites, addConsumption, addFavorite,
+    favorites, addConsumption, addFavorite, consumptions,
     isQuickEntryVisible, setQuickEntryVisible
   } = useAppStore();
+
+  const recentSessionLogs = useMemo(() => {
+    if (!isQuickEntryVisible) return [];
+    const cutoff = Date.now() - 12 * 60 * 60 * 1000;
+    const activeLogs = consumptions.filter(c => c.timestamp > cutoff);
+    const uniqueLogs = [];
+    const seen = new Set();
+    const sorted = [...activeLogs].sort((a, b) => b.timestamp - a.timestamp);
+    for (const log of sorted) {
+      const key = `${log.type}-${log.name}-${log.volumeOz || log.mg}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        uniqueLogs.push(log);
+      }
+    }
+    return uniqueLogs;
+  }, [consumptions, isQuickEntryVisible]);
 
   const navigation = useNavigation<any>();
   const [modalVisible, setModalVisible] = useState(false);
@@ -170,7 +187,33 @@ export default function QuickEntry() {
                 <Text style={{ color: colors.textSecondary, fontSize: 24 }}>✕</Text>
               </TouchableOpacity>
             </View>
+
+            {recentSessionLogs.length > 0 && (
+              <>
+                <Text style={[styles.sectionHeader, { marginTop: 0 }]}>Recent in this Session</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.scroll}>
+                  {recentSessionLogs.map((log) => (
+                    <TouchableOpacity
+                      key={`recent-${log.id}`}
+                      style={[styles.card, styles.recentCard]}
+                      onPress={() => {
+                        handleQuickTap(log);
+                        setQuickEntryVisible(false);
+                      }}
+                    >
+                      <View style={{ marginBottom: 8 }}>
+                        <EntryIcon iconString={log.emoji} size={32} color={colors.primary} />
+                      </View>
+                      <Text style={styles.recentCardTitle} numberOfLines={2} adjustsFontSizeToFit>{log.name}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </>
+            )}
+
+            <Text style={[styles.sectionHeader, { marginTop: 24 }]}>Favorites</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.scroll}>
+
               {favorites.map((fav) => (
                 <TouchableOpacity
                   key={fav.id}
@@ -187,13 +230,12 @@ export default function QuickEntry() {
                   <Text style={styles.cardTitle}>{fav.name}</Text>
                 </TouchableOpacity>
               ))}
-
-              <TouchableOpacity style={[styles.card, styles.addCard]} onPress={() => setModalVisible(true)}>
-                <Text style={styles.addIcon}>+</Text>
-                <Text style={styles.cardTitle}>Custom</Text>
-              </TouchableOpacity>
             </ScrollView>
-            <Text style={{ textAlign: 'center', color: colors.textSecondary, fontSize: 12, marginTop: 8 }}>Long press any favorite to manage</Text>
+            <Text style={{ textAlign: 'center', color: colors.textSecondary, fontSize: 12, marginTop: 8, marginBottom: 24 }}>Long press any favorite to manage</Text>
+
+            <TouchableOpacity style={styles.addCustomBtn} onPress={() => setModalVisible(true)}>
+              <Text style={styles.addCustomBtnText}>+ Add Custom Entry</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -474,20 +516,32 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     height: 120,
   },
-  addCard: {
+  recentCard: {
     backgroundColor: 'transparent',
-    borderWidth: 2,
-    borderColor: colors.surface,
-    borderStyle: 'dashed',
-    marginRight: 48,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+  },
+  recentCardTitle: {
+    ...typography.caption,
+    color: colors.primary,
+    textAlign: 'center',
+    fontWeight: 'bold',
+  },
+  addCustomBtn: {
+    backgroundColor: colors.primary,
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+  },
+  addCustomBtnText: {
+    ...typography.h3,
+    color: colors.background,
+    fontWeight: 'bold',
   },
   cardIcon: {
     fontSize: 32,
-    marginBottom: 8,
-  },
-  addIcon: {
-    fontSize: 32,
-    color: colors.textSecondary,
     marginBottom: 8,
   },
   cardTitle: {
@@ -575,6 +629,14 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.textSecondary,
     marginBottom: 4,
+    fontWeight: 'bold',
+  },
+  sectionHeader: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
     fontWeight: 'bold',
   },
   iconPickerBtn: {

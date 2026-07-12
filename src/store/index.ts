@@ -8,7 +8,6 @@ export type Units = 'imperial' | 'metric';
 export type Gender = 'male' | 'female' | 'other';
 export type ConsumableType = 'alcohol' | 'thc';
 export type IngestionMethod = 'inhaled' | 'edible';
-
 export interface UserProfile {
   height: number;
   weight: number;

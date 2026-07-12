@@ -27,16 +27,14 @@ const timeAgo = (ts: number) => {
 };
 
 export default function DashboardScreen({ navigation }: any) {
-  const { 
-    consumptions, 
-    sessions, 
-    activeSessionId, 
-    profile, 
-    removeConsumption,
-    updateSessionState,
-    endSession,
-    setStartSessionVisible
-  } = useAppStore();
+  const consumptions = useAppStore(state => state.consumptions);
+  const sessions = useAppStore(state => state.sessions);
+  const activeSessionId = useAppStore(state => state.activeSessionId);
+  const profile = useAppStore(state => state.profile);
+  const removeConsumption = useAppStore(state => state.removeConsumption);
+  const updateSessionState = useAppStore(state => state.updateSessionState);
+  const endSession = useAppStore(state => state.endSession);
+  const setStartSessionVisible = useAppStore(state => state.setStartSessionVisible);
 
   const [levels, setLevels] = useState({ currentBAC: 0, currentTHC: 0, peakTHC: 0 });
   const [peaks, setPeaks] = useState({ peakBAC: 0, peakBACTime: 0, peakTHC: 0, peakTHCTime: 0 });

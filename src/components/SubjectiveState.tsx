@@ -87,7 +87,7 @@ export default function SubjectiveState({
         label="Mood"
         value={mood}
         onChange={onMoodChange}
-        activeColor={colors.primary}
+        activeColor="#4A90E2"
         labels={MOOD_LABELS}
       />
       

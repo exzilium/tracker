@@ -87,77 +87,83 @@ export default function BurndownChart({ consumptionsOverride, startTimeOverride,
 
   const stepX = CHART_WIDTH / numPoints;
   
-  // Normalized Y points
-  const getBacY = (val: number) => Math.max(0, CHART_HEIGHT - (val / highestBAC) * CHART_HEIGHT);
-  const getThcY = (val: number) => Math.max(0, CHART_HEIGHT - (val / highestTHC) * CHART_HEIGHT);
+  const { bacPathD, thcPathD, limitBacY, limitThcY, midBacY, midThcY } = useMemo(() => {
+    const getBacY = (val: number) => Math.max(0, CHART_HEIGHT - (val / highestBAC) * CHART_HEIGHT);
+    const getThcY = (val: number) => Math.max(0, CHART_HEIGHT - (val / highestTHC) * CHART_HEIGHT);
 
-  const bacPathD = `M0,${getBacY(bacPoints[0])} ` + bacPoints.map((val, i) => `L${i * stepX},${getBacY(val)}`).join(' ');
-  const thcPathD = `M0,${getThcY(thcPoints[0])} ` + thcPoints.map((val, i) => `L${i * stepX},${getThcY(val)}`).join(' ');
+    const bPath = `M0,${getBacY(bacPoints[0])} ` + bacPoints.map((val, i) => `L${i * stepX},${getBacY(val)}`).join(' ');
+    const tPath = `M0,${getThcY(thcPoints[0])} ` + thcPoints.map((val, i) => `L${i * stepX},${getThcY(val)}`).join(' ');
 
-  const limitBacY = Math.max(0, CHART_HEIGHT - (maxBAC / highestBAC) * CHART_HEIGHT);
-  const limitThcY = Math.max(0, CHART_HEIGHT - (maxTHC / highestTHC) * CHART_HEIGHT);
-  const midBacY = getBacY(highestBAC / 2);
-  const midThcY = getThcY(highestTHC / 2);
+    return {
+      bacPathD: bPath,
+      thcPathD: tPath,
+      limitBacY: Math.max(0, CHART_HEIGHT - (maxBAC / highestBAC) * CHART_HEIGHT),
+      limitThcY: Math.max(0, CHART_HEIGHT - (maxTHC / highestTHC) * CHART_HEIGHT),
+      midBacY: getBacY(highestBAC / 2),
+      midThcY: getThcY(highestTHC / 2)
+    };
+  }, [bacPoints, thcPoints, highestBAC, highestTHC, maxBAC, maxTHC, stepX]);
 
   const realNow = lastRefreshed || Date.now();
   const currentDiffMins = (realNow - now) / 60000;
   const nowX = (currentDiffMins / 5) * stepX;
 
   // Generate Grid Lines
-  const gridLines = [];
-  const labels = [];
-  let minorTickInterval = 60; // mins
-  if (activeTimeWindowHours <= 1) minorTickInterval = 15;
-  else if (activeTimeWindowHours <= 4) minorTickInterval = 30;
-  else if (activeTimeWindowHours <= 8) minorTickInterval = 60;
-  else if (activeTimeWindowHours <= 12) minorTickInterval = 120; // 2 hours
-  else minorTickInterval = 240; // 4 hours
+  const { gridLines, labels } = useMemo(() => {
+    const grids = [];
+    const lbls = [];
+    let minorTickInterval = 60; // mins
+    if (activeTimeWindowHours <= 1) minorTickInterval = 15;
+    else if (activeTimeWindowHours <= 4) minorTickInterval = 30;
+    else if (activeTimeWindowHours <= 8) minorTickInterval = 60;
+    else if (activeTimeWindowHours <= 12) minorTickInterval = 120; // 2 hours
+    else minorTickInterval = 240; // 4 hours
 
-  const currentMinutes = new Date(now).getMinutes();
-  const minutesToFirstTick = (minorTickInterval - (currentMinutes % minorTickInterval)) % minorTickInterval;
-  const totalMinutes = activeTimeWindowHours * 60;
+    const currentMinutes = new Date(now).getMinutes();
+    const minutesToFirstTick = (minorTickInterval - (currentMinutes % minorTickInterval)) % minorTickInterval;
+    const totalMinutes = activeTimeWindowHours * 60;
 
-  for (let m = minutesToFirstTick; m <= totalMinutes; m += minorTickInterval) {
-    const tickTime = now + (m * 60000);
-    const d = new Date(tickTime);
-    const isHour = d.getMinutes() === 0;
-    
-    // Position x based on fraction of total time
-    const x = (m / 5) * stepX;
+    for (let m = minutesToFirstTick; m <= totalMinutes; m += minorTickInterval) {
+      const tickTime = now + (m * 60000);
+      const d = new Date(tickTime);
+      const isHour = d.getMinutes() === 0;
+      
+      const x = (m / 5) * stepX;
 
-    gridLines.push(
-      <SvgLine 
-        key={`grid-${m}`}
-        x1={x} y1={0} x2={x} y2={CHART_HEIGHT}
-        stroke={isHour ? colors.textSecondary : colors.surface}
-        strokeWidth={isHour ? 1 : 0.5}
-        strokeOpacity={isHour ? 0.5 : 0.3}
-        strokeDasharray={!isHour ? "2,2" : undefined}
-      />
-    );
-
-    // Only show labels for intervals based on density
-    const shouldShowLabel = 
-      (activeTimeWindowHours <= 4 && (m % 60 === 0)) || // Every hour
-      (activeTimeWindowHours > 4 && activeTimeWindowHours <= 12 && (m % 120 === 0)) || // Every 2 hours
-      (activeTimeWindowHours > 12 && (m % 240 === 0)); // Every 4 hours
-
-    if (shouldShowLabel && x > 35 && x < CHART_WIDTH - 35) {
-      labels.push(
-        <SvgText
-          key={`label-${m}`}
-          x={x}
-          y={CHART_HEIGHT + 15}
-          fill={colors.textSecondary}
-          fontSize="10"
-          fontFamily="System"
-          textAnchor="middle"
-        >
-          {formatTime(tickTime, false)}
-        </SvgText>
+      grids.push(
+        <SvgLine 
+          key={`grid-${m}`}
+          x1={x} y1={0} x2={x} y2={CHART_HEIGHT}
+          stroke={isHour ? colors.textSecondary : colors.surface}
+          strokeWidth={isHour ? 1 : 0.5}
+          strokeOpacity={isHour ? 0.5 : 0.3}
+          strokeDasharray={!isHour ? "2,2" : undefined}
+        />
       );
+
+      const shouldShowLabel = 
+        (activeTimeWindowHours <= 4 && (m % 60 === 0)) ||
+        (activeTimeWindowHours > 4 && activeTimeWindowHours <= 12 && (m % 120 === 0)) ||
+        (activeTimeWindowHours > 12 && (m % 240 === 0));
+
+      if (shouldShowLabel && x > 35 && x < CHART_WIDTH - 35) {
+        lbls.push(
+          <SvgText
+            key={`label-${m}`}
+            x={x}
+            y={CHART_HEIGHT + 15}
+            fill={colors.textSecondary}
+            fontSize="10"
+            fontFamily="System"
+            textAnchor="middle"
+          >
+            {formatTime(tickTime, false)}
+          </SvgText>
+        );
+      }
     }
-  }
+    return { gridLines: grids, labels: lbls };
+  }, [now, activeTimeWindowHours, stepX]);
 
   const handleScrub = (x: number) => {
     let idx = Math.round(x / stepX);
@@ -219,8 +225,8 @@ export default function BurndownChart({ consumptionsOverride, startTimeOverride,
         <Svg width={CHART_WIDTH} height={CHART_HEIGHT + 24}>
           <Defs>
             <LinearGradient id="gradBac" x1="0" y1="0" x2="0" y2="1">
-              <Stop offset="0" stopColor={colors.primary} stopOpacity="0.5" />
-              <Stop offset="1" stopColor={colors.primary} stopOpacity="0" />
+              <Stop offset="0" stopColor="#F59E0B" stopOpacity="0.5" />
+              <Stop offset="1" stopColor="#F59E0B" stopOpacity="0" />
             </LinearGradient>
             <LinearGradient id="gradThc" x1="0" y1="0" x2="0" y2="1">
               <Stop offset="0" stopColor={colors.success} stopOpacity="0.5" />
@@ -232,16 +238,16 @@ export default function BurndownChart({ consumptionsOverride, startTimeOverride,
 
           {/* BAC Curve */}
           <Path d={`${bacPathD} L${CHART_WIDTH},${CHART_HEIGHT} L0,${CHART_HEIGHT} Z`} fill="url(#gradBac)" />
-          <Path d={bacPathD} fill="none" stroke={colors.primary} strokeWidth={3} />
-          <Path d={`M0,${limitBacY} L${CHART_WIDTH},${limitBacY}`} fill="none" stroke={colors.primary} strokeWidth={1} strokeDasharray="5,5" opacity={0.5} />
+          <Path d={bacPathD} fill="none" stroke="#F59E0B" strokeWidth={3} />
+          <Path d={`M0,${limitBacY} L${CHART_WIDTH},${limitBacY}`} fill="none" stroke="#F59E0B" strokeWidth={1} strokeDasharray="5,5" opacity={0.5} />
           
-          <SvgText x={10} y={Math.max(10, limitBacY - 5)} fill={colors.primary} fontSize="10" fontFamily="System" opacity={0.8} fontWeight="bold">
+          <SvgText x={10} y={Math.max(10, limitBacY - 5)} fill="#F59E0B" fontSize="10" fontFamily="System" opacity={0.8} fontWeight="bold">
             LIMIT {maxBAC.toFixed(2)}
           </SvgText>
-          <SvgText x={10} y={midBacY} fill={colors.primary} fontSize="10" fontFamily="System" opacity={0.5}>
+          <SvgText x={10} y={midBacY} fill="#F59E0B" fontSize="10" fontFamily="System" opacity={0.5}>
             {(highestBAC / 2).toFixed(2)}
           </SvgText>
-          <SvgText x={10} y={CHART_HEIGHT - 15} fill={colors.primary} fontSize="10" fontFamily="System" opacity={0.5}>0</SvgText>
+          <SvgText x={10} y={CHART_HEIGHT - 15} fill="#F59E0B" fontSize="10" fontFamily="System" opacity={0.5}>0</SvgText>
           
           {/* THC Curve */}
           <Path d={`${thcPathD} L${CHART_WIDTH},${CHART_HEIGHT} L0,${CHART_HEIGHT} Z`} fill="url(#gradThc)" />
@@ -314,7 +320,7 @@ export default function BurndownChart({ consumptionsOverride, startTimeOverride,
             <Text style={styles.tooltipTime}>
               {formatTime(now + (scrubIdx * 5 * 60000), true)}
             </Text>
-            <Text style={[styles.tooltipVal, { color: colors.primary }]}>
+            <Text style={[styles.tooltipVal, { color: '#F59E0B' }]}>
               BAC: {bacPoints[scrubIdx].toFixed(3)}
             </Text>
             <Text style={[styles.tooltipVal, { color: colors.success }]}>
@@ -326,7 +332,7 @@ export default function BurndownChart({ consumptionsOverride, startTimeOverride,
 
       <View style={styles.legend}>
         <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: colors.primary }]} />
+          <View style={[styles.legendDot, { backgroundColor: '#F59E0B' }]} />
           <Text style={styles.legendText}>BAC (Alcohol)</Text>
         </View>
         <View style={styles.legendItem}>

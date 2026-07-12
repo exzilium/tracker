@@ -3,6 +3,27 @@ import { View, Text, StyleSheet } from 'react-native';
 import { useAppStore } from '../store';
 import { colors, typography } from '../theme';
 import { calculateDangerLevel } from '../utils/dangerLevel';
+import { generateInsight } from '../utils/insightEngine';
+
+import AstronautGraphic from './AstronautGraphic';
+import TetherGraphic from './TetherGraphic';
+
+const LiveClock = ({ statusColor }: { statusColor: string }) => {
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <View style={styles.liveTimeBox}>
+      <Text style={[styles.liveTimeText, { color: statusColor }]}>
+        Live: {currentTime.toLocaleTimeString([], {hour: 'numeric', minute:'2-digit'})}
+      </Text>
+    </View>
+  );
+};
 
 interface Props {
   currentBAC: number;
@@ -21,7 +42,9 @@ export default function DangerMeter({
   peakTHC,
   peakTHCTime,
 }: Props) {
-  const { profile, activeSessionId, sessions } = useAppStore();
+  const profile = useAppStore(state => state.profile);
+  const activeSessionId = useAppStore(state => state.activeSessionId);
+  const sessions = useAppStore(state => state.sessions);
   
   const activeSession = sessions.find(s => s.id === activeSessionId);
   const currentMood = activeSession?.mood || 3;
@@ -31,23 +54,33 @@ export default function DangerMeter({
   const maxBAC = profile.maxBAC || 0.08;
   const maxTHC = profile.maxTHC || 10;
 
-  const { dangerPercent, warningMsg } = useMemo(() => calculateDangerLevel(
-    currentBAC, maxBAC, currentTHC, maxTHC, currentMood, currentHunger, currentAnxiety
-  ), [currentBAC, maxBAC, currentTHC, maxTHC, currentMood, currentHunger, currentAnxiety]);
+  const { tensionPercent } = useMemo(() => calculateDangerLevel(
+    currentBAC, maxBAC, peakBAC, currentTHC, maxTHC, peakTHC, currentMood, currentHunger, currentAnxiety
+  ), [currentBAC, maxBAC, peakBAC, currentTHC, maxTHC, peakTHC, currentMood, currentHunger, currentAnxiety]);
+
+  const warningMsg = useMemo(() => generateInsight({
+    tensionPercent,
+    currentBAC,
+    maxBAC,
+    peakBAC,
+    currentTHC,
+    maxTHC,
+    peakTHC,
+    mood: currentMood,
+    hunger: currentHunger,
+    anxiety: currentAnxiety,
+    // Note: Projection and Historical Deltas (isProjectedToSpike, didTensionDrop) 
+    // are stubbed out here until Sprint 4 integrates the projection engine.
+  }), [tensionPercent, currentBAC, maxBAC, currentTHC, maxTHC, currentMood, currentHunger, currentAnxiety]);
 
   let statusColor = colors.success;
-  if (dangerPercent >= 100) {
+  if (tensionPercent >= 100) {
     statusColor = colors.error;
-  } else if (dangerPercent >= 75) {
+  } else if (tensionPercent >= 85) {
     statusColor = colors.warning;
+  } else if (tensionPercent < 20) {
+    statusColor = colors.textSecondary;
   }
-
-  const [currentTime, setCurrentTime] = useState(new Date());
-
-  useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
 
   const formatTime = (ts: number) => {
     return new Date(ts).toLocaleTimeString([], {hour: 'numeric', minute:'2-digit'});
@@ -74,11 +107,11 @@ export default function DangerMeter({
   return (
     <View style={styles.container}>
       <View style={styles.statusBox}>
-        <View style={styles.liveTimeBox}>
-          <Text style={[styles.liveTimeText, { color: statusColor }]}>
-            Live: {currentTime.toLocaleTimeString([], {hour: 'numeric', minute:'2-digit'})}
-          </Text>
-        </View>
+        <LiveClock statusColor={statusColor} />
+
+        {/* Dashboard Visuals */}
+        <AstronautGraphic tensionPercent={tensionPercent} />
+        <TetherGraphic tensionPercent={tensionPercent} />
 
         <View style={styles.statsRow}>
           <View style={styles.statCol}>

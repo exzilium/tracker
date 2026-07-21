@@ -71,7 +71,7 @@ export default function DangerMeter({
     anxiety: currentAnxiety,
     // Note: Projection and Historical Deltas (isProjectedToSpike, didTensionDrop) 
     // are stubbed out here until Sprint 4 integrates the projection engine.
-  }), [tensionPercent, currentBAC, maxBAC, currentTHC, maxTHC, currentMood, currentHunger, currentAnxiety]);
+  }), [tensionPercent, currentBAC, maxBAC, peakBAC, currentTHC, maxTHC, peakTHC, currentMood, currentHunger, currentAnxiety]);
 
   let statusColor = colors.success;
   if (tensionPercent >= 100) {

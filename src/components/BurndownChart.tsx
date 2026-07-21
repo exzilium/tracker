@@ -41,8 +41,9 @@ export default function BurndownChart({ consumptionsOverride, startTimeOverride,
   const chartStartTime = useMemo(() => {
     if (startTimeOverride) return startTimeOverride;
     
+    const targetConsumptions = consumptionsOverride || storeConsumptions;
     // Find the oldest active log to use as session start
-    const activeLogs = storeConsumptions.filter(c => Date.now() - c.timestamp < 12 * 60 * 60 * 1000);
+    const activeLogs = targetConsumptions.filter(c => Date.now() - c.timestamp < 12 * 60 * 60 * 1000);
     if (activeLogs.length > 0) {
       const oldest = Math.min(...activeLogs.map(c => c.timestamp));
       const paddingMins = activeTimeWindowHours <= 2 ? 15 : 30;
@@ -51,7 +52,7 @@ export default function BurndownChart({ consumptionsOverride, startTimeOverride,
     
     // No active session, default to 1 hour ago
     return Date.now() - (60 * 60 * 1000);
-  }, [startTimeOverride, storeConsumptions, activeTimeWindowHours]);
+  }, [startTimeOverride, storeConsumptions, consumptionsOverride, activeTimeWindowHours]);
 
   const [scrubIdx, setScrubIdx] = useState<number | null>(null);
 

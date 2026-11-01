@@ -1,5 +1,5 @@
 import React from 'react';
-import renderer, { act } from 'react-test-renderer';
+import renderer, { act, ReactTestRenderer } from 'react-test-renderer';
 import TetherGraphic from './TetherGraphic';
 import { colors } from '../theme';
 
@@ -28,8 +28,12 @@ describe('TetherGraphic', () => {
     jest.useFakeTimers();
   });
 
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   it('renders slack state (gray sine wave)', () => {
-    let component: any;
+    let component!: ReactTestRenderer;
     act(() => {
       component = renderer.create(<TetherGraphic tensionPercent={10} />);
     });
@@ -41,7 +45,7 @@ describe('TetherGraphic', () => {
   });
 
   it('renders Taut straight line when tension is 20-84', () => {
-    let component: any;
+    let component!: ReactTestRenderer;
     act(() => {
       component = renderer.create(<TetherGraphic tensionPercent={50} />);
     });
@@ -52,7 +56,7 @@ describe('TetherGraphic', () => {
   });
 
   it('renders High Tension knot when tension is 85-99', () => {
-    let component: any;
+    let component!: ReactTestRenderer;
     act(() => {
       component = renderer.create(<TetherGraphic tensionPercent={90} />);
     });
@@ -63,7 +67,7 @@ describe('TetherGraphic', () => {
   });
 
   it('renders Critical snapped lines when tension >= 100', () => {
-    let component: any;
+    let component!: ReactTestRenderer;
     act(() => {
       component = renderer.create(<TetherGraphic tensionPercent={110} />);
     });

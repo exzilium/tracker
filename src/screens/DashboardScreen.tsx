@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useMemo, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, AppState, Platform, Image } from 'react-native';
+import React, { useEffect, useState, useMemo } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, AppState } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAppStore, Consumption } from '../store';
@@ -26,18 +26,16 @@ const timeAgo = (ts: number) => {
   return remainder > 0 ? `${diffHours}h ${remainder}m ago` : `${diffHours}h ago`;
 };
 
-export default function DashboardScreen({ navigation }: any) {
-  const consumptions = useAppStore(state => state.consumptions);
-  const sessions = useAppStore(state => state.sessions);
-  const activeSessionId = useAppStore(state => state.activeSessionId);
-  const profile = useAppStore(state => state.profile);
-  const removeConsumption = useAppStore(state => state.removeConsumption);
-  const updateSessionState = useAppStore(state => state.updateSessionState);
-  const endSession = useAppStore(state => state.endSession);
-  const setStartSessionVisible = useAppStore(state => state.setStartSessionVisible);
+export default function DashboardScreen({ navigation }: { navigation: { navigate: (screen: string, params?: any) => void } }) {
+  const consumptions = useAppStore((state) => state.consumptions);
+  const sessions = useAppStore((state) => state.sessions);
+  const activeSessionId = useAppStore((state) => state.activeSessionId);
+  const profile = useAppStore((state) => state.profile);
+  const removeConsumption = useAppStore((state) => state.removeConsumption);
+  const updateSessionState = useAppStore((state) => state.updateSessionState);
+  const endSession = useAppStore((state) => state.endSession);
+  const setStartSessionVisible = useAppStore((state) => state.setStartSessionVisible);
 
-  const [levels, setLevels] = useState({ currentBAC: 0, currentTHC: 0, peakTHC: 0 });
-  const [peaks, setPeaks] = useState({ peakBAC: 0, peakBACTime: 0, peakTHC: 0, peakTHCTime: 0 });
   const [editingLog, setEditingLog] = useState<Consumption | null>(null);
   const [endSessionConfirmVisible, setEndSessionConfirmVisible] = useState(false);
   const [lastRefreshed, setLastRefreshed] = useState(Date.now());
@@ -50,7 +48,7 @@ export default function DashboardScreen({ navigation }: any) {
     const timer = setInterval(() => setLastRefreshed(Date.now()), 60000);
     
     // AppState listener for when returning from background/locked state
-    const subscription = AppState.addEventListener('change', nextAppState => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
       if (nextAppState === 'active') {
         setLastRefreshed(Date.now());
       }
@@ -62,22 +60,33 @@ export default function DashboardScreen({ navigation }: any) {
     };
   }, []);
 
-  const activeSession = sessions.find(s => s.id === activeSessionId);
+  const activeSession = useMemo(
+    () => sessions.find((s) => s.id === activeSessionId) ?? null,
+    [sessions, activeSessionId]
+  );
 
   const currentSessionLogs = useMemo(() => {
     if (!activeSessionId) return [];
     
     return consumptions
-      .filter(c => c.sessionId === activeSessionId)
+      .filter((c) => c.sessionId === activeSessionId)
       .sort((a, b) => b.timestamp - a.timestamp);
   }, [consumptions, activeSessionId]);
+
+  const levels = useMemo(
+    () => getCurrentLevels(currentSessionLogs, profile, lastRefreshed),
+    [currentSessionLogs, profile, lastRefreshed]
+  );
+
+  const peaks = useMemo(
+    () => getPeaks(currentSessionLogs, profile, lastRefreshed),
+    [currentSessionLogs, profile, lastRefreshed]
+  );
 
   // Biological Reset logic for active session
   useEffect(() => {
     if (activeSessionId && activeSession && currentSessionLogs.length > 0) {
-      const { currentBAC, currentTHC } = getCurrentLevels(currentSessionLogs, profile);
-      
-      const isCompletelySober = currentBAC <= 0 && currentTHC <= 0;
+      const isCompletelySober = levels.currentBAC <= 0 && levels.currentTHC <= 0;
       const isInactiveFor4Hours = Date.now() - currentSessionLogs[0].timestamp > 4 * 60 * 60 * 1000;
       const isOver24Hours = Date.now() - activeSession.startTime > 24 * 60 * 60 * 1000;
       
@@ -89,13 +98,7 @@ export default function DashboardScreen({ navigation }: any) {
         }
       }
     }
-  }, [currentSessionLogs, profile, activeSession, activeSessionId, autoClosePrompted]);
-
-  // Recalculate levels whenever current session logs change or time passes
-  useEffect(() => {
-    setLevels(getCurrentLevels(currentSessionLogs, profile));
-    setPeaks(getPeaks(currentSessionLogs, profile));
-  }, [currentSessionLogs, profile, lastRefreshed]);
+  }, [currentSessionLogs, levels.currentBAC, levels.currentTHC, activeSession, activeSessionId, autoClosePrompted]);
 
   const handleDelete = (id: string, name: string) => {
     AppAlert(
@@ -147,7 +150,7 @@ export default function DashboardScreen({ navigation }: any) {
           <Text style={[styles.header, { letterSpacing: 1, fontSize: 42 }]}>Space Tether</Text>
         </View>
 
-        {!activeSessionId ? (
+        {!activeSessionId || !activeSession ? (
           <View style={styles.emptyState}>
             <View style={styles.emptyStateContent}>
               <FloatingMascot />
@@ -173,12 +176,12 @@ export default function DashboardScreen({ navigation }: any) {
             />
 
             <SubjectiveState 
-              mood={activeSession!.mood}
-              hunger={activeSession!.hunger}
-              anxiety={activeSession!.anxiety}
-              onMoodChange={(v) => updateSessionState(v, activeSession!.hunger, activeSession!.anxiety)}
-              onHungerChange={(v) => updateSessionState(activeSession!.mood, v, activeSession!.anxiety)}
-              onAnxietyChange={(v) => updateSessionState(activeSession!.mood, activeSession!.hunger, v)}
+              mood={activeSession.mood}
+              hunger={activeSession.hunger}
+              anxiety={activeSession.anxiety}
+              onMoodChange={(v) => updateSessionState(v, activeSession.hunger, activeSession.anxiety)}
+              onHungerChange={(v) => updateSessionState(activeSession.mood, v, activeSession.anxiety)}
+              onAnxietyChange={(v) => updateSessionState(activeSession.mood, activeSession.hunger, v)}
             />
 
             <BurndownChart consumptionsOverride={currentSessionLogs} lastRefreshed={lastRefreshed} />

@@ -61,4 +61,11 @@ describe('calculateDangerLevel (%T)', () => {
     const result = calculateDangerLevel(0.04, 0.08, 0.04, 5, 10, 5, 3, 5, 4);
     expect(result.tensionPercent).toBe(95);
   });
+
+  it('should safely handle NaN or negative values without returning NaN', () => {
+    const nanBacResult = calculateDangerLevel(NaN, 0.08, 0.08, 8, 10, 8, 3, 5, 3);
+    expect(Number.isFinite(nanBacResult.tensionPercent)).toBe(true);
+    // THC = 80% + Hunger 5 (+15%) + BAC trailing decay (+10%) = 105%
+    expect(nanBacResult.tensionPercent).toBe(105);
+  });
 });

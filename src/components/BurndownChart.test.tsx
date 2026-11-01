@@ -1,5 +1,5 @@
 import React from 'react';
-import renderer, { act } from 'react-test-renderer';
+import renderer, { act, ReactTestRenderer } from 'react-test-renderer';
 import BurndownChart from './BurndownChart';
 
 // Mock dependencies
@@ -41,14 +41,18 @@ describe('BurndownChart', () => {
     jest.useFakeTimers();
   });
 
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   it('renders without crashing and displays the BAC/THC curves', () => {
-    let component: any;
+    let component!: ReactTestRenderer;
     act(() => {
-      component = renderer.create(<BurndownChart activeTimeWindowHours={4} hideTimeToggles={true} />);
+      component = renderer.create(<BurndownChart fixedTimeWindowHours={4} hideTimeToggles={true} />);
     });
     const root = component.root;
     
-    // Just verify the Paths render (which includes BAC, THC curves)
+    // Verify the Paths render (which includes BAC, THC curves)
     const paths = root.findAllByType('Path' as any);
     expect(paths.length).toBeGreaterThan(0);
   });

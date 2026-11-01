@@ -7,7 +7,10 @@ import SubjectiveState from './SubjectiveState';
 import EntryIcon from './EntryIcon';
 
 export default function StartSessionModal() {
-  const { startSession, favorites, isStartSessionVisible, setStartSessionVisible } = useAppStore();
+  const startSession = useAppStore((state) => state.startSession);
+  const favorites = useAppStore((state) => state.favorites);
+  const isStartSessionVisible = useAppStore((state) => state.isStartSessionVisible);
+  const setStartSessionVisible = useAppStore((state) => state.setStartSessionVisible);
   
   const [mood, setMood] = useState(3);
   const [hunger, setHunger] = useState(3);
@@ -37,6 +40,7 @@ export default function StartSessionModal() {
     }));
     
     startSession(mood, hunger, anxiety, initialConsumptions);
+    setSelectedFavorites([]);
     setStartSessionVisible(false);
   };
 

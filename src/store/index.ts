@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import * as Crypto from 'expo-crypto';
-import AsyncStorage from '@react-native-async-storage/async-storage'; // Kept for potential migrations
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { zustandStorage } from './storage';
 
@@ -48,7 +47,7 @@ export interface FavoriteItem extends Omit<Consumption, 'id' | 'sessionId' | 'ti
   id: string;
 }
 
-interface AppState {
+export interface AppState {
   profile: UserProfile;
   sessions: Session[];
   activeSessionId: string | null;
@@ -77,18 +76,20 @@ interface AppState {
   moveToTopFavorite: (index: number) => void;
 }
 
+const DEFAULT_PROFILE: UserProfile = {
+  height: 0,
+  weight: 0,
+  gender: 'other',
+  units: 'imperial',
+  isOnboarded: false,
+  maxBAC: 0.08,
+  maxTHC: 10,
+};
+
 export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
-      profile: {
-        height: 0,
-        weight: 0,
-        gender: 'other',
-        units: 'imperial',
-        isOnboarded: false,
-        maxBAC: 0.08,
-        maxTHC: 10,
-      },
+      profile: DEFAULT_PROFILE,
       sessions: [],
       activeSessionId: null,
       isQuickEntryVisible: false,
@@ -216,6 +217,14 @@ export const useAppStore = create<AppState>()(
           
       moveFavorite: (fromIndex, toIndex) =>
         set((state) => {
+          if (
+            fromIndex < 0 ||
+            fromIndex >= state.favorites.length ||
+            toIndex < 0 ||
+            toIndex >= state.favorites.length
+          ) {
+            return state;
+          }
           const newFavs = [...state.favorites];
           const [movedItem] = newFavs.splice(fromIndex, 1);
           newFavs.splice(toIndex, 0, movedItem);
@@ -224,7 +233,7 @@ export const useAppStore = create<AppState>()(
 
       moveToTopFavorite: (index) =>
         set((state) => {
-          if (index === 0) return state;
+          if (index <= 0 || index >= state.favorites.length) return state;
           const newFavs = [...state.favorites];
           const [movedItem] = newFavs.splice(index, 1);
           newFavs.unshift(movedItem);
@@ -233,7 +242,37 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'tracker-storage',
+      version: 1,
       storage: createJSONStorage(() => zustandStorage),
+      partialize: (state) => ({
+        profile: state.profile,
+        sessions: state.sessions,
+        activeSessionId: state.activeSessionId,
+        consumptions: state.consumptions,
+        favorites: state.favorites,
+      }),
+      migrate: (persistedState: unknown) => {
+        if (!persistedState || typeof persistedState !== 'object') {
+          return {};
+        }
+        return persistedState as Partial<AppState>;
+      },
+      merge: (persistedState, currentState) => {
+        const typedPersisted = (persistedState as Partial<AppState>) || {};
+        return {
+          ...currentState,
+          ...typedPersisted,
+          isQuickEntryVisible: false,
+          isStartSessionVisible: false,
+          profile: {
+            ...currentState.profile,
+            ...(typedPersisted.profile || {}),
+          },
+          sessions: Array.isArray(typedPersisted.sessions) ? typedPersisted.sessions : currentState.sessions,
+          consumptions: Array.isArray(typedPersisted.consumptions) ? typedPersisted.consumptions : currentState.consumptions,
+          favorites: Array.isArray(typedPersisted.favorites) ? typedPersisted.favorites : currentState.favorites,
+        };
+      },
     }
   )
 );

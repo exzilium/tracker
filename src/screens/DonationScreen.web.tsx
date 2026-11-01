@@ -1,10 +1,10 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, typography } from '../theme';
 import { AppAlert } from '../utils/AppAlert';
 
-export default function DonationScreen({ navigation }: any) {
+export default function DonationScreen({ navigation }: { navigation: { goBack: () => void } }) {
   const handlePurchase = () => {
     AppAlert('Simulated', 'This is a simulated purchase for Web! 🍻');
   };

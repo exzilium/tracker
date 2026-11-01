@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useMemo, useCallback } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppStore, Consumption } from '../store';
 import { colors, typography } from '../theme';
@@ -19,14 +19,31 @@ export interface SessionData {
   peakTHC: number;
 }
 
-export default function SessionsListScreen({ navigation }: any) {
-  const { sessions, consumptions, profile } = useAppStore();
+const formatDate = (ts: number) => {
+  return new Date(ts).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+};
+
+export default function SessionsListScreen({ navigation }: { navigation: { goBack: () => void; navigate: (screen: string, params?: any) => void } }) {
+  const sessions = useAppStore((state) => state.sessions);
+  const consumptions = useAppStore((state) => state.consumptions);
+  const profile = useAppStore((state) => state.profile);
 
   const formattedSessions = useMemo(() => {
     if (sessions.length === 0) return [];
 
-    const result: SessionData[] = sessions.map(s => {
-      const sessionConsumptions = consumptions.filter(c => c.sessionId === s.id);
+    // O(C) single-pass index of consumptions by sessionId
+    const bySession = new Map<string, Consumption[]>();
+    for (const c of consumptions) {
+      const existing = bySession.get(c.sessionId);
+      if (existing) {
+        existing.push(c);
+      } else {
+        bySession.set(c.sessionId, [c]);
+      }
+    }
+
+    const result: SessionData[] = sessions.map((s) => {
+      const sessionConsumptions = bySession.get(s.id) || [];
       
       let totalDrinks = 0;
       let totalTHC = 0;
@@ -34,15 +51,25 @@ export default function SessionsListScreen({ navigation }: any) {
       let maxBAC = 0;
       let maxTHC = 0;
 
-      // Calculate peak BAC and peak THC by checking levels between startTime and endTime (or +8h if active)
-      const checkEnd = s.endTime ? s.endTime : Date.now() + (8 * 60 * 60 * 1000);
-      for (let t = s.startTime; t <= checkEnd; t += 5 * 60 * 1000) {
-        const { currentBAC, currentTHC } = getCurrentLevels(sessionConsumptions, profile, t);
-        if (currentBAC > maxBAC) maxBAC = currentBAC;
-        if (currentTHC > maxTHC) maxTHC = currentTHC;
+      if (sessionConsumptions.length > 0) {
+        let minTs = sessionConsumptions[0].timestamp;
+        let maxTs = sessionConsumptions[0].timestamp;
+        for (const c of sessionConsumptions) {
+          if (c.timestamp < minTs) minTs = c.timestamp;
+          if (c.timestamp > maxTs) maxTs = c.timestamp;
+        }
+        // Bound simulation window to actual intake span (+12h max tail) to avoid multi-day runaway loops
+        const rawEnd = s.endTime ? s.endTime : Date.now() + 8 * 60 * 60 * 1000;
+        const checkEnd = Math.min(Math.max(rawEnd, maxTs + 2 * 60 * 60 * 1000), maxTs + 12 * 60 * 60 * 1000);
+
+        for (let t = minTs; t <= checkEnd; t += 5 * 60 * 1000) {
+          const { currentBAC, currentTHC } = getCurrentLevels(sessionConsumptions, profile, t);
+          if (currentBAC > maxBAC) maxBAC = currentBAC;
+          if (currentTHC > maxTHC) maxTHC = currentTHC;
+        }
       }
 
-      sessionConsumptions.forEach(c => {
+      sessionConsumptions.forEach((c) => {
         if (c.type === 'alcohol' && c.volumeOz && c.abvPercent) {
           totalDrinks += calculateStandardDrinks(c.volumeOz, c.abvPercent);
         }
@@ -67,9 +94,48 @@ export default function SessionsListScreen({ navigation }: any) {
     return result.reverse();
   }, [sessions, consumptions, profile]);
 
-  const formatDate = (ts: number) => {
-    return new Date(ts).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
-  };
+  const renderItem = useCallback(
+    ({ item: session }: { item: SessionData }) => (
+      <TouchableOpacity
+        style={styles.card}
+        onPress={() => navigation.navigate('SessionDetail', { session })}
+      >
+        <View style={styles.cardHeader}>
+          <Text style={styles.dateText}>{formatDate(session.startTime)}</Text>
+          <Text style={styles.countText}>{session.consumptions.length} items</Text>
+        </View>
+        <View style={{ gap: 8 }}>
+          <View style={styles.statsRow}>
+            <View style={[styles.statItem, { flex: 1 }]}>
+              <EntryIcon iconString="Ionicons:beer-outline" size={14} color={colors.textSecondary} />
+              <Text style={styles.stat}> {session.totalDrinks} Drinks</Text>
+            </View>
+            <View style={[styles.statItem, { flex: 1 }]}>
+              <EntryIcon iconString="MaterialCommunityIcons:percent" size={14} color={colors.textSecondary} />
+              <Text style={styles.stat}> {session.peakBAC} Peak BAC</Text>
+            </View>
+          </View>
+          <View style={styles.statsRow}>
+            <View style={[styles.statItem, { flex: 1 }]}>
+              <EntryIcon iconString="Ionicons:leaf-outline" size={14} color={colors.textSecondary} />
+              <Text style={styles.stat}> {session.totalTHC}mg THC</Text>
+            </View>
+            <View style={[styles.statItem, { flex: 1 }]}>
+              <EntryIcon iconString="Ionicons:balloon-outline" size={14} color={colors.textSecondary} />
+              <Text style={styles.stat}> {session.peakTHC}mg Peak THC</Text>
+            </View>
+          </View>
+          <View style={styles.statsRow}>
+            <View style={[styles.statItem, { flex: 1 }]}>
+              <EntryIcon iconString="Ionicons:scale-outline" size={14} color={colors.textSecondary} />
+              <Text style={styles.stat}> {session.totalCalories} cals</Text>
+            </View>
+          </View>
+        </View>
+      </TouchableOpacity>
+    ),
+    [navigation]
+  );
 
   return (
     <SafeAreaView style={styles.container}>
@@ -81,52 +147,15 @@ export default function SessionsListScreen({ navigation }: any) {
         <View style={{ width: 60 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
-        {formattedSessions.length === 0 ? (
-          <Text style={styles.emptyText}>No sessions recorded yet.</Text>
-        ) : (
-          formattedSessions.map(session => (
-            <TouchableOpacity 
-              key={session.id} 
-              style={styles.card}
-              onPress={() => navigation.navigate('SessionDetail', { session })}
-            >
-              <View style={styles.cardHeader}>
-                <Text style={styles.dateText}>{formatDate(session.startTime)}</Text>
-                <Text style={styles.countText}>{session.consumptions.length} items</Text>
-              </View>
-              <View style={{ gap: 8 }}>
-                <View style={styles.statsRow}>
-                  <View style={[styles.statItem, { flex: 1 }]}>
-                    <EntryIcon iconString="Ionicons:beer-outline" size={14} color={colors.textSecondary} />
-                    <Text style={styles.stat}> {session.totalDrinks} Drinks</Text>
-                  </View>
-                  <View style={[styles.statItem, { flex: 1 }]}>
-                    <EntryIcon iconString="MaterialCommunityIcons:percent" size={14} color={colors.textSecondary} />
-                    <Text style={styles.stat}> {session.peakBAC} Peak BAC</Text>
-                  </View>
-                </View>
-                <View style={styles.statsRow}>
-                  <View style={[styles.statItem, { flex: 1 }]}>
-                    <EntryIcon iconString="Ionicons:leaf-outline" size={14} color={colors.textSecondary} />
-                    <Text style={styles.stat}> {session.totalTHC}mg THC</Text>
-                  </View>
-                  <View style={[styles.statItem, { flex: 1 }]}>
-                    <EntryIcon iconString="Ionicons:balloon-outline" size={14} color={colors.textSecondary} />
-                    <Text style={styles.stat}> {session.peakTHC}mg Peak THC</Text>
-                  </View>
-                </View>
-                <View style={styles.statsRow}>
-                  <View style={[styles.statItem, { flex: 1 }]}>
-                    <EntryIcon iconString="Ionicons:scale-outline" size={14} color={colors.textSecondary} />
-                    <Text style={styles.stat}> {session.totalCalories} cals</Text>
-                  </View>
-                </View>
-              </View>
-            </TouchableOpacity>
-          ))
-        )}
-      </ScrollView>
+      <FlatList
+        data={formattedSessions}
+        keyExtractor={(item) => item.id}
+        renderItem={renderItem}
+        contentContainerStyle={styles.content}
+        initialNumToRender={10}
+        windowSize={5}
+        ListEmptyComponent={<Text style={styles.emptyText}>No sessions recorded yet.</Text>}
+      />
     </SafeAreaView>
   );
 }
@@ -161,6 +190,7 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 24,
+    paddingBottom: 40,
   },
   emptyText: {
     color: colors.textSecondary,

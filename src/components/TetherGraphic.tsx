@@ -1,6 +1,6 @@
 import React from 'react';
-import { View, StyleSheet, Dimensions } from 'react-native';
-import Svg, { Path, Line, Circle } from 'react-native-svg';
+import { View, StyleSheet, useWindowDimensions } from 'react-native';
+import Svg, { Path, Line } from 'react-native-svg';
 import { colors } from '../theme';
 
 interface Props {
@@ -8,7 +8,8 @@ interface Props {
 }
 
 const TetherGraphic = React.memo(({ tensionPercent }: Props) => {
-  const width = Dimensions.get('window').width - 48; // Padding 24 on each side
+  const { width: windowWidth } = useWindowDimensions();
+  const width = Math.max(100, (windowWidth || 360) - 48); // Padding 24 on each side
   const height = 40;
   const centerY = height / 2;
 

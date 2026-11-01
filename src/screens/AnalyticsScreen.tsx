@@ -3,9 +3,13 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppStore } from '../store';
 import { colors, typography } from '../theme';
+import { calculateStandardDrinks } from '../utils/mathEngine';
+import { getPeaks } from '../utils/currentLevels';
 
-export default function AnalyticsScreen({ navigation }: any) {
-  const { sessions, consumptions } = useAppStore();
+export default function AnalyticsScreen({ navigation }: { navigation: { goBack: () => void } }) {
+  const sessions = useAppStore((state) => state.sessions);
+  const consumptions = useAppStore((state) => state.consumptions);
+  const profile = useAppStore((state) => state.profile);
 
   const snapshot = useMemo(() => {
     if (sessions.length === 0) return null;
@@ -18,14 +22,17 @@ export default function AnalyticsScreen({ navigation }: any) {
     let totalTHC = 0;
     
     sessionLogs.forEach(c => {
-      if (c.type === 'alcohol') totalDrinks += 1;
+      if (c.type === 'alcohol' && c.volumeOz && c.abvPercent) {
+        totalDrinks += calculateStandardDrinks(c.volumeOz, c.abvPercent);
+      }
       if (c.type === 'thc' && c.mg) totalTHC += c.mg;
     });
 
-    const roughPeakBAC = (totalDrinks * 0.02).toFixed(3); 
+    const { peakBAC } = getPeaks(sessionLogs, profile, lastSession.endTime ?? Date.now());
+    const roughPeakBAC = peakBAC.toFixed(3);
     
     return { 
-      totalDrinks, 
+      totalDrinks: Number(totalDrinks.toFixed(1)), 
       totalTHC, 
       roughPeakBAC, 
       avgMood: lastSession.mood, 
@@ -33,7 +40,9 @@ export default function AnalyticsScreen({ navigation }: any) {
       avgAnxiety: lastSession.anxiety,
       logCount: sessionLogs.length 
     };
-  }, [sessions, consumptions]);
+  }, [sessions, consumptions, profile]);
+
+  const limitBAC = profile.maxBAC || 0.08;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -81,13 +90,13 @@ export default function AnalyticsScreen({ navigation }: any) {
 
         <View style={styles.fullCard}>
           <Text style={styles.cardLabel}>Estimated Peak BAC</Text>
-          <Text style={[styles.cardValue, { color: Number(snapshot.roughPeakBAC) > 0.08 ? colors.error : colors.success }]}>
+          <Text style={[styles.cardValue, { color: Number(snapshot.roughPeakBAC) > limitBAC ? colors.error : colors.success }]}>
             {snapshot.roughPeakBAC}
           </Text>
           <Text style={styles.caption}>
-            {Number(snapshot.roughPeakBAC) > 0.08 
-              ? "You likely crossed the legal driving limit during this session."
-              : "You stayed under the typical legal limit."}
+            {Number(snapshot.roughPeakBAC) > limitBAC 
+              ? "You likely crossed your BAC limit during this session."
+              : "You stayed under your BAC limit."}
           </Text>
         </View>
         </>

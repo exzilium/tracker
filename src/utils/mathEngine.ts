@@ -1,4 +1,4 @@
-import { Gender } from '../store';
+import { Gender, IngestionMethod } from '../store';
 
 /**
  * Widmark Formula for estimating Blood Alcohol Concentration (BAC)
@@ -8,13 +8,62 @@ import { Gender } from '../store';
  * Then, we subtract the metabolic burn rate (approx 0.015 per hour).
  */
 
-const WIDMARK_CONSTANT = {
+export const WIDMARK_CONSTANT: Record<Gender, number> = {
   male: 0.68,
   female: 0.55,
   other: 0.61, // Average of male and female
 };
 
-const METABOLIC_RATE_PER_HOUR = 0.015;
+export const METABOLIC_RATE_PER_HOUR = 0.015;
+
+/**
+ * Calculates cumulative raw BAC absorbed from a single drink up to `minutesElapsed`
+ * without subtracting metabolic burnoff. Used by multi-drink pool integration so
+ * liver elimination is not multiplied across concurrent drinks.
+ */
+export const calculateAbsorbedRawBAC = (
+  volumeOz: number,
+  abvPercent: number,
+  weightLbs: number,
+  gender: Gender,
+  minutesElapsed: number,
+  durationMins: number = 0
+): number => {
+  if (
+    !Number.isFinite(volumeOz) ||
+    volumeOz <= 0 ||
+    !Number.isFinite(abvPercent) ||
+    abvPercent <= 0 ||
+    !Number.isFinite(weightLbs) ||
+    weightLbs <= 0 ||
+    !Number.isFinite(minutesElapsed) ||
+    minutesElapsed < 0
+  ) {
+    return 0;
+  }
+
+  // Convert volume from fluid ounces to milliliters (1 oz = 29.5735 ml)
+  const volumeMl = volumeOz * 29.5735;
+
+  // Calculate grams of alcohol (density of ethanol is 0.789 g/ml), clamping ABV to [0, 100]
+  const safeAbv = Math.min(100, Math.max(0, abvPercent));
+  const totalAlcoholGrams = volumeMl * (safeAbv / 100) * 0.789;
+
+  // Distribute absorption over durationMins
+  let absorbedRatio = 1;
+  if (Number.isFinite(durationMins) && durationMins > 0) {
+    absorbedRatio = Math.min(1, Math.max(0, minutesElapsed / durationMins));
+  }
+  const alcoholGrams = totalAlcoholGrams * absorbedRatio;
+
+  // Convert body weight from lbs to grams
+  const weightGrams = weightLbs * 453.592;
+
+  const r = WIDMARK_CONSTANT[gender] ?? WIDMARK_CONSTANT.other;
+
+  // Base BAC without burnoff
+  return (alcoholGrams / (weightGrams * r)) * 100;
+};
 
 export const calculateBAC = (
   volumeOz: number,
@@ -24,33 +73,22 @@ export const calculateBAC = (
   hoursElapsed: number,
   durationMins: number = 0
 ): number => {
-  if (weightLbs <= 0 || hoursElapsed < 0) return 0;
+  if (!Number.isFinite(hoursElapsed) || hoursElapsed < 0) return 0;
 
-  // Convert volume from fluid ounces to milliliters (1 oz = 29.5735 ml)
-  const volumeMl = volumeOz * 29.5735;
-  
-  // Calculate grams of alcohol (density of ethanol is 0.789 g/ml)
-  const totalAlcoholGrams = volumeMl * (abvPercent / 100) * 0.789;
-  
-  // Distribute absorption over durationMins
-  const minutesElapsed = hoursElapsed * 60;
-  let absorbedRatio = 1;
-  if (durationMins > 0) {
-    absorbedRatio = Math.min(1, Math.max(0, minutesElapsed / durationMins));
-  }
-  const alcoholGrams = totalAlcoholGrams * absorbedRatio;
-  
-  // Convert body weight from lbs to grams
-  const weightGrams = weightLbs * 453.592;
-  
-  const r = WIDMARK_CONSTANT[gender];
-  
-  // Base BAC without burnoff
-  const rawBAC = (alcoholGrams / (weightGrams * r)) * 100;
-  
+  const rawBAC = calculateAbsorbedRawBAC(
+    volumeOz,
+    abvPercent,
+    weightLbs,
+    gender,
+    hoursElapsed * 60,
+    durationMins
+  );
+
+  if (rawBAC <= 0) return 0;
+
   // Subtract burnoff based on time
-  const currentBAC = rawBAC - (METABOLIC_RATE_PER_HOUR * hoursElapsed);
-  
+  const currentBAC = rawBAC - METABOLIC_RATE_PER_HOUR * hoursElapsed;
+
   return Math.max(0, currentBAC); // BAC cannot be negative
 };
 
@@ -61,9 +99,17 @@ export const calculateBAC = (
  * grams = volumeMl * (abv / 100) * 0.789
  */
 export const calculateStandardDrinks = (volumeOz: number, abvPercent: number): number => {
-  if (!volumeOz || !abvPercent) return 0;
+  if (
+    !Number.isFinite(volumeOz) ||
+    volumeOz <= 0 ||
+    !Number.isFinite(abvPercent) ||
+    abvPercent <= 0
+  ) {
+    return 0;
+  }
   const volumeMl = volumeOz * 29.5735;
-  const grams = volumeMl * (abvPercent / 100) * 0.789;
+  const safeAbv = Math.min(100, Math.max(0, abvPercent));
+  const grams = volumeMl * (safeAbv / 100) * 0.789;
   return Number((grams / 14).toFixed(1)); // round to 1 decimal
 };
 
@@ -72,13 +118,13 @@ export const calculateStandardDrinks = (volumeOz: number, abvPercent: number): n
  * Returns the estimated percentage of "peak" effect (0.0 to 1.0)
  * based on the ingestion method and time elapsed.
  */
-export type IngestionMethod = 'inhaled' | 'edible';
+export type { IngestionMethod };
 
 export const calculateTHCEffect = (
   method: IngestionMethod,
   minutesElapsed: number
 ): number => {
-  if (minutesElapsed < 0) return 0;
+  if (!Number.isFinite(minutesElapsed) || minutesElapsed < 0) return 0;
 
   if (method === 'inhaled') {
     // Inhaled: Peak at ~20 mins, burndown over 3 hours

@@ -1,5 +1,5 @@
 import React from 'react';
-import renderer, { act } from 'react-test-renderer';
+import renderer, { act, ReactTestRenderer } from 'react-test-renderer';
 import AstronautGraphic from './AstronautGraphic';
 import { useAppStore } from '../store';
 import { colors } from '../theme';
@@ -19,10 +19,14 @@ describe('AstronautGraphic', () => {
     jest.useFakeTimers();
   });
 
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   it('renders Slack state (gray) when tension is low', () => {
     (useAppStore as unknown as jest.Mock).mockReturnValue({});
 
-    let component: any;
+    let component!: ReactTestRenderer;
     act(() => {
       component = renderer.create(<AstronautGraphic tensionPercent={15} />);
     });
@@ -35,7 +39,7 @@ describe('AstronautGraphic', () => {
   it('renders Taut state (green) when tension is medium', () => {
     (useAppStore as unknown as jest.Mock).mockReturnValue({});
 
-    let component: any;
+    let component!: ReactTestRenderer;
     act(() => {
       component = renderer.create(<AstronautGraphic tensionPercent={50} />);
     });
@@ -47,7 +51,7 @@ describe('AstronautGraphic', () => {
   it('renders High Tension state (orange) when tension is high', () => {
     (useAppStore as unknown as jest.Mock).mockReturnValue({});
 
-    let component: any;
+    let component!: ReactTestRenderer;
     act(() => {
       component = renderer.create(<AstronautGraphic tensionPercent={90} />);
     });
@@ -59,7 +63,7 @@ describe('AstronautGraphic', () => {
   it('renders Critical state (red) when tension is >= 100', () => {
     (useAppStore as unknown as jest.Mock).mockReturnValue({});
 
-    let component: any;
+    let component!: ReactTestRenderer;
     act(() => {
       component = renderer.create(<AstronautGraphic tensionPercent={120} />);
     });

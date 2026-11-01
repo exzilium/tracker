@@ -1,12 +1,16 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Switch, Animated, Image, Dimensions, Platform } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Switch, Animated, useWindowDimensions, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAppStore, Units, Gender } from '../store';
+import { useAppStore, Gender } from '../store';
 import { colors, typography } from '../theme';
+import { AppAlert } from '../utils/AppAlert';
 
 export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
-  const { profile, setProfile, completeOnboarding } = useAppStore();
+  const { width, height } = useWindowDimensions();
+  const profile = useAppStore((state) => state.profile);
+  const setProfile = useAppStore((state) => state.setProfile);
+  const completeOnboarding = useAppStore((state) => state.completeOnboarding);
   
   const initHeight = profile.height || 0;
   const [weightStr, setWeightStr] = useState(profile.weight ? profile.weight.toString() : '');
@@ -20,7 +24,7 @@ export default function OnboardingScreen() {
   const floatAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.loop(
+    const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(floatAnim, {
           toValue: -10,
@@ -33,12 +37,15 @@ export default function OnboardingScreen() {
           useNativeDriver: Platform.OS !== 'web',
         }),
       ])
-    ).start();
+    );
+    loop.start();
+    return () => {
+      loop.stop();
+    };
   }, [floatAnim]);
 
   // Generate static background stars
   const stars = useMemo(() => {
-    const { width, height } = Dimensions.get('window');
     const starCount = 30;
     const generated = [];
     for (let i = 0; i < starCount; i++) {
@@ -52,21 +59,21 @@ export default function OnboardingScreen() {
       });
     }
     return generated;
-  }, []);
+  }, [width, height]);
 
   const handleComplete = () => {
     let finalHeight = 0;
     if (isMetric) {
-      finalHeight = parseFloat(heightCmStr) || 0;
+      finalHeight = Math.max(0, parseFloat(heightCmStr) || 0);
     } else {
-      const ft = parseFloat(heightFtStr) || 0;
-      const inc = parseFloat(heightInStr) || 0;
+      const ft = Math.max(0, parseFloat(heightFtStr) || 0);
+      const inc = Math.max(0, parseFloat(heightInStr) || 0);
       finalHeight = (ft * 12) + inc;
     }
 
     const weight = parseFloat(weightStr) || 0;
-    if (weight <= 0) {
-      alert("Please enter a valid weight. This is required for BAC calculations.");
+    if (!Number.isFinite(weight) || weight <= 0) {
+      AppAlert('Invalid Weight', 'Please enter a valid weight. This is required for BAC calculations.');
       return;
     }
 
@@ -80,7 +87,7 @@ export default function OnboardingScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       {/* Background Stars */}
-      <View style={[StyleSheet.absoluteFill, { overflow: 'hidden', pointerEvents: 'none' as any }]}>
+      <View pointerEvents="none" style={[StyleSheet.absoluteFill, { overflow: 'hidden' }]}>
         {stars.map((s) => (
           <Text key={s.id} style={{
             position: 'absolute',
@@ -134,7 +141,7 @@ export default function OnboardingScreen() {
           keyboardType="numeric"
           value={weightStr}
           onChangeText={setWeightStr}
-          placeholder="e.g. 150"
+          placeholder={isMetric ? "e.g. 68" : "e.g. 150"}
           placeholderTextColor={colors.textSecondary}
         />
       </View>

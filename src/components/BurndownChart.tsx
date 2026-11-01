@@ -1,12 +1,10 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, Dimensions, TouchableOpacity, PanResponder } from 'react-native';
+import { View, Text, StyleSheet, useWindowDimensions, TouchableOpacity, PanResponder } from 'react-native';
 import Svg, { Path, Defs, LinearGradient, Stop, Line as SvgLine, Text as SvgText } from 'react-native-svg';
-import { useAppStore } from '../store';
+import { useAppStore, Consumption } from '../store';
 import { getCurrentLevels } from '../utils/currentLevels';
 import { colors, typography } from '../theme';
 
-const { width } = Dimensions.get('window');
-const CHART_WIDTH = width;
 const CHART_HEIGHT = 220;
 
 const formatTime = (ts: number, showMins = false) => {
@@ -22,17 +20,26 @@ const formatTime = (ts: number, showMins = false) => {
   return `${h}:${mStr} ${ampm}`;
 };
 
-interface BurndownChartProps {
-  consumptionsOverride?: any[];
+export interface BurndownChartProps {
+  consumptionsOverride?: Consumption[];
   startTimeOverride?: number;
   lastRefreshed?: number;
   fixedTimeWindowHours?: number;
   hideTimeToggles?: boolean;
 }
 
-export default function BurndownChart({ consumptionsOverride, startTimeOverride, lastRefreshed, fixedTimeWindowHours, hideTimeToggles }: BurndownChartProps) {
-  const storeConsumptions = useAppStore(state => state.consumptions);
-  const profile = useAppStore(state => state.profile);
+export default function BurndownChart({
+  consumptionsOverride,
+  startTimeOverride,
+  lastRefreshed,
+  fixedTimeWindowHours,
+  hideTimeToggles,
+}: BurndownChartProps) {
+  const { width: windowWidth } = useWindowDimensions();
+  const CHART_WIDTH = windowWidth || 360;
+
+  const storeConsumptions = useAppStore((state) => state.consumptions);
+  const profile = useAppStore((state) => state.profile);
   
   const consumptions = consumptionsOverride || storeConsumptions;
   const [timeWindowHours, setTimeWindowHours] = useState(8);
@@ -41,9 +48,10 @@ export default function BurndownChart({ consumptionsOverride, startTimeOverride,
   const chartStartTime = useMemo(() => {
     if (startTimeOverride) return startTimeOverride;
     
+    const refNow = lastRefreshed || Date.now();
     const targetConsumptions = consumptionsOverride || storeConsumptions;
     // Find the oldest active log to use as session start
-    const activeLogs = targetConsumptions.filter(c => Date.now() - c.timestamp < 12 * 60 * 60 * 1000);
+    const activeLogs = targetConsumptions.filter(c => refNow - c.timestamp < 12 * 60 * 60 * 1000);
     if (activeLogs.length > 0) {
       const oldest = Math.min(...activeLogs.map(c => c.timestamp));
       const paddingMins = activeTimeWindowHours <= 2 ? 15 : 30;
@@ -51,8 +59,8 @@ export default function BurndownChart({ consumptionsOverride, startTimeOverride,
     }
     
     // No active session, default to 1 hour ago
-    return Date.now() - (60 * 60 * 1000);
-  }, [startTimeOverride, storeConsumptions, consumptionsOverride, activeTimeWindowHours]);
+    return refNow - (60 * 60 * 1000);
+  }, [startTimeOverride, storeConsumptions, consumptionsOverride, activeTimeWindowHours, lastRefreshed]);
 
   const [scrubIdx, setScrubIdx] = useState<number | null>(null);
 
@@ -65,8 +73,8 @@ export default function BurndownChart({ consumptionsOverride, startTimeOverride,
 
   // Generate data points for the selected time window (in 5 minute increments)
   const chartData = useMemo(() => {
-    const bacPoints = [];
-    const thcPoints = [];
+    const bacPoints: number[] = [];
+    const thcPoints: number[] = [];
     const now = chartStartTime;
     
     const totalMinutes = activeTimeWindowHours * 60;
@@ -121,10 +129,14 @@ export default function BurndownChart({ consumptionsOverride, startTimeOverride,
     else minorTickInterval = 240; // 4 hours
 
     const currentMinutes = new Date(now).getMinutes();
-    const minutesToFirstTick = (minorTickInterval - (currentMinutes % minorTickInterval)) % minorTickInterval;
+    const minutesToFirstHour = (60 - currentMinutes) % 60;
     const totalMinutes = activeTimeWindowHours * 60;
+    const startOffset = minorTickInterval < 60
+      ? (minorTickInterval - (currentMinutes % minorTickInterval)) % minorTickInterval
+      : minutesToFirstHour;
 
-    for (let m = minutesToFirstTick; m <= totalMinutes; m += minorTickInterval) {
+    let tickIndex = 0;
+    for (let m = startOffset; m <= totalMinutes; m += minorTickInterval, tickIndex++) {
       const tickTime = now + (m * 60000);
       const d = new Date(tickTime);
       const isHour = d.getMinutes() === 0;
@@ -142,10 +154,8 @@ export default function BurndownChart({ consumptionsOverride, startTimeOverride,
         />
       );
 
-      const shouldShowLabel = 
-        (activeTimeWindowHours <= 4 && (m % 60 === 0)) ||
-        (activeTimeWindowHours > 4 && activeTimeWindowHours <= 12 && (m % 120 === 0)) ||
-        (activeTimeWindowHours > 12 && (m % 240 === 0));
+      const shouldShowLabel =
+        activeTimeWindowHours <= 4 ? isHour : isHour && tickIndex % 2 === 0;
 
       if (shouldShowLabel && x > 35 && x < CHART_WIDTH - 35) {
         lbls.push(
@@ -164,13 +174,13 @@ export default function BurndownChart({ consumptionsOverride, startTimeOverride,
       }
     }
     return { gridLines: grids, labels: lbls };
-  }, [now, activeTimeWindowHours, stepX]);
+  }, [now, activeTimeWindowHours, stepX, CHART_WIDTH]);
 
   const handleScrub = (x: number) => {
     let idx = Math.round(x / stepX);
     if (idx < 0) idx = 0;
     if (idx > numPoints) idx = numPoints;
-    setScrubIdx(idx);
+    setScrubIdx((prev) => (prev === idx ? prev : idx));
   };
 
   const handleScrubRef = useRef(handleScrub);
@@ -316,7 +326,7 @@ export default function BurndownChart({ consumptionsOverride, startTimeOverride,
         {scrubIdx !== null && bacPoints[scrubIdx] !== undefined && thcPoints[scrubIdx] !== undefined && (
           <View pointerEvents="none" style={[
             styles.tooltip, 
-            { left: Math.min((scrubIdx * stepX) - 40, CHART_WIDTH - 80) }
+            { left: Math.max(0, Math.min((scrubIdx * stepX) - 40, CHART_WIDTH - 90)) }
           ]}>
             <Text style={styles.tooltipTime}>
               {formatTime(now + (scrubIdx * 5 * 60000), true)}

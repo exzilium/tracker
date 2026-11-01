@@ -13,12 +13,11 @@ export const AppAlert = (
 ) => {
   if (Platform.OS === 'web') {
     if (buttons && buttons.length > 0) {
-      // Find a cancel button and a primary action button
-      const cancelBtn = buttons.find(b => b.style === 'cancel');
-      const actionBtn = buttons.find(b => b.style !== 'cancel') || buttons[0];
+      if (buttons.length > 1) {
+        // Find a cancel button and a primary action button
+        const cancelBtn = buttons.find(b => b.style === 'cancel') ?? buttons[0];
+        const actionBtn = buttons.find(b => b !== cancelBtn) ?? buttons[1];
 
-      if (cancelBtn && actionBtn) {
-        // If there are multiple choices, use window.confirm
         const confirmed = window.confirm(`${title}\n\n${message || ''}`);
         if (confirmed) {
           actionBtn.onPress?.();
@@ -26,7 +25,7 @@ export const AppAlert = (
           cancelBtn.onPress?.();
         }
       } else {
-        // Just an OK button
+        // Single OK button
         window.alert(`${title}\n\n${message || ''}`);
         buttons[0].onPress?.();
       }

@@ -1,4 +1,6 @@
-import { calculateBAC, calculateTHCEffect } from '../src/utils/mathEngine';
+import { calculateBAC, calculateTHCEffect, calculateStandardDrinks } from '../src/utils/mathEngine';
+import { getCurrentLevels, getPeaks } from '../src/utils/currentLevels';
+import { Consumption, UserProfile } from '../src/store';
 
 describe('Math Engine - Widmark Formula (BAC)', () => {
   it('calculates 0 BAC when no alcohol is consumed', () => {
@@ -28,9 +30,96 @@ describe('Math Engine - Widmark Formula (BAC)', () => {
     expect(after2HoursBac).toBeCloseTo(immediateBac - 0.03, 2);
   });
 
-  it('never returns a negative BAC', () => {
-    const bac = calculateBAC(12, 5, 150, 'male', 24); // 24 hours later
-    expect(bac).toBe(0);
+  it('distributes alcohol absorption over durationMins', () => {
+    const fullBac = calculateBAC(12, 5, 150, 'male', 0, 0);
+    const halfAbsorbedBac = calculateBAC(12, 5, 150, 'male', 0.5, 60); // 30 mins into a 60 min drink
+    expect(halfAbsorbedBac).toBeCloseTo(fullBac * 0.5 - 0.0075, 4);
+  });
+
+  it('never returns a negative BAC or NaN for invalid inputs', () => {
+    expect(calculateBAC(12, 5, 150, 'male', 24)).toBe(0);
+    expect(calculateBAC(-12, 5, 150, 'male', 0)).toBe(0);
+    expect(calculateBAC(12, -5, 150, 'male', 0)).toBe(0);
+    expect(calculateBAC(NaN, 5, 150, 'male', 0)).toBe(0);
+    expect(calculateStandardDrinks(-12, 5)).toBe(0);
+    expect(calculateStandardDrinks(12, 5)).toBe(1);
+  });
+});
+
+describe('Current Levels - Multi-Drink Pool Integration & Metric Units', () => {
+  const baseProfile: UserProfile = {
+    height: 70,
+    weight: 160,
+    gender: 'male',
+    units: 'imperial',
+    isOnboarded: true,
+    maxBAC: 0.08,
+    maxTHC: 10,
+  };
+
+  it('applies a single 0.015/hr metabolic burn rate across multiple concurrent drinks', () => {
+    const t0 = 1_700_000_000_000;
+    const tAfter1Hr = t0 + 60 * 60 * 1000;
+
+    // 4 standard drinks (4 x 12oz @ 5% = 48oz total) vs 1 combined 48oz drink @ 5%
+    const fourDrinks: Consumption[] = [1, 2, 3, 4].map((i) => ({
+      id: `d-${i}`,
+      sessionId: 's1',
+      type: 'alcohol',
+      name: 'Beer',
+      timestamp: t0,
+      volumeOz: 12,
+      abvPercent: 5,
+      durationMins: 0,
+    }));
+
+    const singleCombinedDrink: Consumption[] = [
+      {
+        id: 'd-combined',
+        sessionId: 's1',
+        type: 'alcohol',
+        name: 'Pitcher',
+        timestamp: t0,
+        volumeOz: 48,
+        abvPercent: 5,
+        durationMins: 0,
+      },
+    ];
+
+    const multiResult = getCurrentLevels(fourDrinks, baseProfile, tAfter1Hr);
+    const singleResult = getCurrentLevels(singleCombinedDrink, baseProfile, tAfter1Hr);
+
+    // 4 separate 12oz drinks at t0 must have the exact same BAC after 1 hour as 1 48oz drink
+    expect(multiResult.currentBAC).toBeCloseTo(singleResult.currentBAC, 5);
+    expect(multiResult.currentBAC).toBeGreaterThan(0.08);
+  });
+
+  it('converts metric weight (kg) to lbs accurately for BAC calculations', () => {
+    const t0 = 1_700_000_000_000;
+    const imperialProfile: UserProfile = { ...baseProfile, weight: 154.3236, units: 'imperial' };
+    const metricProfile: UserProfile = { ...baseProfile, weight: 70, units: 'metric' }; // 70kg ~= 154.3236 lbs
+
+    const logs: Consumption[] = [
+      {
+        id: 'd1',
+        sessionId: 's1',
+        type: 'alcohol',
+        name: 'Wine',
+        timestamp: t0,
+        volumeOz: 5,
+        abvPercent: 12,
+        durationMins: 0,
+      },
+    ];
+
+    const impBac = getCurrentLevels(logs, imperialProfile, t0).currentBAC;
+    const metBac = getCurrentLevels(logs, metricProfile, t0).currentBAC;
+
+    expect(metBac).toBeCloseTo(impBac, 4);
+
+    const impPeaks = getPeaks(logs, imperialProfile, t0);
+    const metPeaks = getPeaks(logs, metricProfile, t0);
+    expect(metPeaks.peakBAC).toBeCloseTo(impPeaks.peakBAC, 4);
   });
 });
 

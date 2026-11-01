@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { colors, typography } from '../theme';
@@ -12,8 +12,15 @@ const itemSKUs = Platform.select({
   android: ['tip_tier_1', 'tip_tier_2'],
 }) || [];
 
-export default function DonationScreen({ navigation }: any) {
-  const [products, setProducts] = useState<any[]>([]);
+interface StoreProduct {
+  id?: string;
+  productId?: string;
+  displayPrice?: string;
+  localizedPrice?: string;
+}
+
+export default function DonationScreen({ navigation }: { navigation: { goBack: () => void } }) {
+  const [products, setProducts] = useState<StoreProduct[]>([]);
   const [loading, setLoading] = useState(!isExpoGo);
 
   useEffect(() => {
@@ -22,16 +29,48 @@ export default function DonationScreen({ navigation }: any) {
     let RNIap: any;
     try {
       RNIap = require('react-native-iap');
-    } catch (e) {
+    } catch {
       setLoading(false);
       return;
     }
 
+    let purchaseUpdateSub: { remove: () => void } | null = null;
+    let purchaseErrorSub: { remove: () => void } | null = null;
+
     const initIAP = async () => {
       try {
         await RNIap.initConnection();
-        const availableProducts = await RNIap.getProducts({ skus: itemSKUs });
-        setProducts(availableProducts);
+
+        if (typeof RNIap.purchaseUpdatedListener === 'function') {
+          purchaseUpdateSub = RNIap.purchaseUpdatedListener(async (purchase: any) => {
+            const hasValidToken = Boolean(
+              purchase?.purchaseToken || purchase?.transactionReceipt || purchase?.transactionId
+            );
+            if (!hasValidToken) return;
+
+            try {
+              await RNIap.finishTransaction({ purchase, isConsumable: true });
+              AppAlert('Success!', 'Thank you for the beer! 🍻');
+            } catch (finishErr) {
+              console.warn('Failed to finish IAP transaction', finishErr);
+            }
+          });
+        }
+
+        if (typeof RNIap.purchaseErrorListener === 'function') {
+          purchaseErrorSub = RNIap.purchaseErrorListener((error: any) => {
+            if (error?.code && error.code !== 'E_USER_CANCELLED') {
+              AppAlert('Purchase Failed', error.message || 'Unable to complete purchase.');
+            }
+          });
+        }
+
+        const availableProducts =
+          typeof RNIap.fetchProducts === 'function'
+            ? await RNIap.fetchProducts({ skus: itemSKUs, type: 'in-app' })
+            : await RNIap.getProducts({ skus: itemSKUs });
+
+        setProducts(Array.isArray(availableProducts) ? availableProducts : []);
       } catch (err) {
         console.warn(err);
       } finally {
@@ -41,7 +80,11 @@ export default function DonationScreen({ navigation }: any) {
     initIAP();
 
     return () => {
-      if (RNIap) RNIap.endConnection();
+      purchaseUpdateSub?.remove();
+      purchaseErrorSub?.remove();
+      if (RNIap && typeof RNIap.endConnection === 'function') {
+        RNIap.endConnection();
+      }
     };
   }, []);
 
@@ -53,10 +96,15 @@ export default function DonationScreen({ navigation }: any) {
 
     try {
       const RNIap = require('react-native-iap');
-      await RNIap.requestPurchase({ sku });
-      AppAlert('Success!', 'Thank you for the beer! 🍻');
+      await RNIap.requestPurchase({
+        request: {
+          apple: { sku },
+          google: { skus: [sku] },
+        },
+        type: 'in-app',
+      });
     } catch (err: any) {
-      console.warn(err.code, err.message);
+      console.warn(err?.code, err?.message);
     }
   };
 
@@ -87,15 +135,19 @@ export default function DonationScreen({ navigation }: any) {
         ) : products.length === 0 ? (
           <Text style={styles.errorText}>Store currently unavailable.</Text>
         ) : (
-          products.map((product) => (
-            <TouchableOpacity 
-              key={product.productId} 
-              style={styles.tipBtn}
-              onPress={() => handlePurchase(product.productId)}
-            >
-              <Text style={styles.tipBtnText}>Tip {product.localizedPrice}</Text>
-            </TouchableOpacity>
-          ))
+          products.map((product) => {
+            const sku = product.id || product.productId || '';
+            const price = product.displayPrice || product.localizedPrice || '';
+            return (
+              <TouchableOpacity 
+                key={sku} 
+                style={styles.tipBtn}
+                onPress={() => handlePurchase(sku)}
+              >
+                <Text style={styles.tipBtnText}>Tip {price}</Text>
+              </TouchableOpacity>
+            );
+          })
         )}
       </View>
     </SafeAreaView>

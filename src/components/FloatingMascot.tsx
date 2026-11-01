@@ -1,25 +1,25 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Animated, StyleSheet, Dimensions, Platform, Text } from 'react-native';
+import { View, Animated, StyleSheet, useWindowDimensions, Platform, Text } from 'react-native';
 import { colors } from '../theme';
 
-const { width } = Dimensions.get('window');
 const STAR_COUNT = 12; // less frequent
 
 export default function FloatingMascot() {
+  const { width } = useWindowDimensions();
   const floatAnim = useRef(new Animated.Value(0)).current;
   const starAnims = useRef([...Array(STAR_COUNT)].map(() => new Animated.Value(0))).current;
   
   // Pre-calculate random positions and sizes for stars so they don't jump on re-renders
   const starConfigs = useRef([...Array(STAR_COUNT)].map(() => ({
     size: 6 + Math.random() * 12, // smaller and more variable size (6 to 18px)
-    leftOffset: (Math.random() * width) - (width / 2), // Spread evenly across full screen width
+    leftRatio: Math.random() - 0.5, // Normalized [-0.5, 0.5] across screen width
     opacityPeak: Math.random() * 0.5 + 0.5, // higher opacity to stand out
     shape: Math.random() > 0.5 ? '✦' : '✧', // 4-pointed sparkle stars
   }))).current;
 
   useEffect(() => {
     // Astronaut gentle float up and down
-    Animated.loop(
+    const floatLoop = Animated.loop(
       Animated.sequence([
         Animated.timing(floatAnim, {
           toValue: -12,
@@ -32,14 +32,15 @@ export default function FloatingMascot() {
           useNativeDriver: Platform.OS !== 'web',
         })
       ])
-    ).start();
+    );
+    floatLoop.start();
 
     // Stars flowing down to simulate flying up
-    starAnims.forEach((anim) => {
+    const starLoops = starAnims.map((anim) => {
       const duration = 3000 + Math.random() * 3000; // slower fall
       const delay = Math.random() * 4000; // longer spawn delay
       
-      Animated.loop(
+      const loop = Animated.loop(
         Animated.sequence([
           Animated.timing(anim, {
             toValue: 0,
@@ -53,9 +54,16 @@ export default function FloatingMascot() {
             useNativeDriver: Platform.OS !== 'web',
           })
         ])
-      ).start();
+      );
+      loop.start();
+      return loop;
     });
-  }, []);
+
+    return () => {
+      floatLoop.stop();
+      starLoops.forEach((loop) => loop.stop());
+    };
+  }, [floatAnim, starAnims]);
 
   return (
     <View style={styles.container}>
@@ -70,7 +78,7 @@ export default function FloatingMascot() {
               styles.star,
               {
                 left: '50%',
-                marginLeft: config.leftOffset,
+                marginLeft: config.leftRatio * width,
                 transform: [
                   {
                     translateY: anim.interpolate({

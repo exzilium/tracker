@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useAppStore, Consumption } from '../store';
+import { useAppStore, Consumption, Session } from '../store';
 import { colors, typography } from '../theme';
 import EntryIcon from '../components/EntryIcon';
 import BurndownChart from '../components/BurndownChart';
@@ -10,8 +10,15 @@ import { calculateStandardDrinks } from '../utils/mathEngine';
 import { getCurrentLevels } from '../utils/currentLevels';
 import { AppAlert } from '../utils/AppAlert';
 
-export default function SessionDetailScreen({ route, navigation }: any) {
-  const { consumptions, profile, removeConsumption } = useAppStore();
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../navigation/RootNavigator';
+
+type SessionDetailProps = NativeStackScreenProps<RootStackParamList, 'SessionDetail'>;
+
+export default function SessionDetailScreen({ route, navigation }: SessionDetailProps) {
+  const consumptions = useAppStore((state) => state.consumptions);
+  const profile = useAppStore((state) => state.profile);
+  const removeConsumption = useAppStore((state) => state.removeConsumption);
   const rawSession = route.params.session;
   
   const [editingLog, setEditingLog] = useState<Consumption | null>(null);
@@ -32,13 +39,16 @@ export default function SessionDetailScreen({ route, navigation }: any) {
     let mTHC = 0;
 
     let cStartTime = rawSession.startTime;
+    let latestLogTime = rawSession.startTime;
     if (sessionConsumptions.length > 0) {
       cStartTime = sessionConsumptions[sessionConsumptions.length - 1].timestamp - (30 * 60 * 1000);
+      latestLogTime = sessionConsumptions[0].timestamp;
     }
 
     let lastActiveTime = cStartTime;
 
-    const checkEnd = (rawSession.endTime || Date.now()) + (8 * 60 * 60 * 1000);
+    const rawEnd = (rawSession.endTime || Date.now()) + (8 * 60 * 60 * 1000);
+    const checkEnd = Math.min(rawEnd, latestLogTime + 16 * 60 * 60 * 1000);
     for (let t = cStartTime; t <= checkEnd; t += 5 * 60 * 1000) {
       const { currentBAC, currentTHC } = getCurrentLevels(sessionConsumptions, profile, t);
       if (currentBAC > mBAC) mBAC = currentBAC;
@@ -48,7 +58,7 @@ export default function SessionDetailScreen({ route, navigation }: any) {
       }
     }
 
-    let chartEndTime = lastActiveTime + (30 * 60 * 1000);
+    const chartEndTime = lastActiveTime + (30 * 60 * 1000);
     let durationHours = Math.ceil((chartEndTime - cStartTime) / (60 * 60 * 1000));
     if (durationHours < 2) durationHours = 2; // minimum 2h window
 

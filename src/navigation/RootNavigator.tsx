@@ -4,7 +4,7 @@ import { Feather } from '@expo/vector-icons';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAppStore } from '../store';
+import { useAppStore, Session } from '../store';
 import OnboardingScreen from '../screens/OnboardingScreen';
 import DashboardScreen from '../screens/DashboardScreen';
 import SessionsListScreen from '../screens/SessionsListScreen';
@@ -16,14 +16,31 @@ import QuickEntry from '../components/QuickEntry';
 import StartSessionModal from '../components/StartSessionModal';
 import { colors } from '../theme';
 
-const Stack = createNativeStackNavigator();
-const Tab = createBottomTabNavigator();
+export type MainTabParamList = {
+  Dashboard: undefined;
+  SessionsList: undefined;
+  Add: undefined;
+  Settings: undefined;
+};
+
+export type RootStackParamList = {
+  Onboarding: undefined;
+  MainTabs: undefined;
+  SessionDetail: { session: Pick<Session, 'id' | 'startTime' | 'endTime'> };
+  Donation: undefined;
+  ManageFavorites: { returnToQuickEntry?: boolean } | undefined;
+};
+
+const Stack = createNativeStackNavigator<RootStackParamList>();
+const Tab = createBottomTabNavigator<MainTabParamList>();
 
 // Temporary Empty Component for the (+) Tab
 const DummyComponent = () => null;
 
 function MainTabNavigator() {
-  const { setQuickEntryVisible, setStartSessionVisible, activeSessionId } = useAppStore();
+  const setQuickEntryVisible = useAppStore((state) => state.setQuickEntryVisible);
+  const setStartSessionVisible = useAppStore((state) => state.setStartSessionVisible);
+  const activeSessionId = useAppStore((state) => state.activeSessionId);
   const insets = useSafeAreaInsets();
   
   return (
@@ -87,27 +104,25 @@ export default function RootNavigator() {
   const isOnboarded = useAppStore((state) => state.profile.isOnboarded);
 
   return (
-    <>
-      <NavigationContainer>
-        <Stack.Navigator screenOptions={{ headerShown: false }}>
-          {!isOnboarded ? (
-            <Stack.Screen name="Onboarding" component={OnboardingScreen} />
-          ) : (
-            <>
-              <Stack.Screen name="MainTabs" component={MainTabNavigator} />
-              <Stack.Screen name="SessionDetail" component={SessionDetailScreen} />
-              <Stack.Screen name="Donation" component={DonationScreen} />
-              <Stack.Screen name="ManageFavorites" component={ManageFavoritesScreen} />
-            </>
-          )}
-        </Stack.Navigator>
-        {isOnboarded && (
+    <NavigationContainer>
+      <Stack.Navigator screenOptions={{ headerShown: false }}>
+        {!isOnboarded ? (
+          <Stack.Screen name="Onboarding" component={OnboardingScreen} />
+        ) : (
           <>
-            <QuickEntry />
-            <StartSessionModal />
+            <Stack.Screen name="MainTabs" component={MainTabNavigator} />
+            <Stack.Screen name="SessionDetail" component={SessionDetailScreen} />
+            <Stack.Screen name="Donation" component={DonationScreen} />
+            <Stack.Screen name="ManageFavorites" component={ManageFavoritesScreen} />
           </>
         )}
-      </NavigationContainer>
-    </>
+      </Stack.Navigator>
+      {isOnboarded && (
+        <>
+          <QuickEntry />
+          <StartSessionModal />
+        </>
+      )}
+    </NavigationContainer>
   );
 }

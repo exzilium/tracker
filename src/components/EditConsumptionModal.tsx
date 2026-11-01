@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Modal, TextInput, TouchableOpacity } from 'react-native';
-import { useAppStore, Consumption, ConsumableType } from '../store';
+import { View, Text, StyleSheet, Modal, TextInput, TouchableOpacity, ScrollView } from 'react-native';
+import { useAppStore, Consumption, IngestionMethod } from '../store';
 import { colors, typography } from '../theme';
 import EntryIcon from './EntryIcon';
-import { ScrollView } from 'react-native';
 
 const ALCOHOL_ICONS = [
   'Ionicons:beer-outline',
@@ -34,12 +33,13 @@ interface EditConsumptionModalProps {
 }
 
 export default function EditConsumptionModal({ visible, consumption, onClose }: EditConsumptionModalProps) {
-  const { updateConsumption } = useAppStore();
+  const updateConsumption = useAppStore((state) => state.updateConsumption);
 
   const [editName, setEditName] = useState('');
   const [editEmoji, setEditEmoji] = useState('');
   const [editAmount, setEditAmount] = useState('');
   const [editAbv, setEditAbv] = useState('');
+  const [editMethod, setEditMethod] = useState<IngestionMethod>('edible');
   const [editDuration, setEditDuration] = useState('');
   const [editCalories, setEditCalories] = useState('');
   const [editTimestamp, setEditTimestamp] = useState<number>(Date.now());
@@ -57,6 +57,7 @@ export default function EditConsumptionModal({ visible, consumption, onClose }: 
         setEditAbv(consumption.abvPercent ? consumption.abvPercent.toString() : '');
       } else {
         setEditAmount(consumption.mg ? consumption.mg.toString() : '');
+        setEditMethod(consumption.method || 'edible');
       }
     }
   }, [consumption]);
@@ -64,20 +65,22 @@ export default function EditConsumptionModal({ visible, consumption, onClose }: 
   const handleSave = () => {
     if (!consumption) return;
 
-    const amount = parseFloat(editAmount) || 0;
+    const amount = Math.max(0, parseFloat(editAmount) || 0);
+    const parsedCals = parseFloat(editCalories);
     const updates: Partial<Consumption> = {
-      name: editName,
+      name: editName.trim() || consumption.name,
       emoji: editEmoji,
-      durationMins: consumption.type === 'alcohol' ? (parseFloat(editDuration) || 0) : 0,
-      calories: parseFloat(editCalories) || undefined,
-      timestamp: editTimestamp,
+      durationMins: consumption.type === 'alcohol' ? Math.max(0, parseFloat(editDuration) || 0) : 0,
+      calories: !isNaN(parsedCals) && parsedCals >= 0 ? parsedCals : undefined,
+      timestamp: Math.min(Date.now(), editTimestamp),
     };
 
     if (consumption.type === 'alcohol') {
       updates.volumeOz = amount;
-      updates.abvPercent = parseFloat(editAbv) || 0;
+      updates.abvPercent = Math.min(100, Math.max(0, parseFloat(editAbv) || 0));
     } else {
       updates.mg = amount;
+      updates.method = editMethod;
     }
 
     updateConsumption(consumption.id, updates);
@@ -113,7 +116,10 @@ export default function EditConsumptionModal({ visible, consumption, onClose }: 
             <Text style={styles.timeText}>
               {new Date(editTimestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
             </Text>
-            <TouchableOpacity style={styles.shiftBtn} onPress={() => setEditTimestamp(editTimestamp + (15 * 60000))}>
+            <TouchableOpacity
+              style={styles.shiftBtn}
+              onPress={() => setEditTimestamp(Math.min(Date.now(), editTimestamp + (15 * 60000)))}
+            >
               <Text style={styles.shiftBtnText}>+15m</Text>
             </TouchableOpacity>
           </View>

@@ -1,12 +1,11 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, TextInput, Alert } from 'react-native';
-import { useAppStore, FavoriteItem, ConsumableType } from '../store';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, TextInput } from 'react-native';
+import { useAppStore, FavoriteItem, ConsumableType, IngestionMethod } from '../store';
 import { colors, typography } from '../theme';
 import { scheduleHydrationReminder } from '../utils/notifications';
 import { AppAlert } from '../utils/AppAlert';
 import { useNavigation } from '@react-navigation/native';
-
-const CHECK_IN_COOLDOWN_MS = 2 * 60 * 60 * 1000; // 2 hours
+import EntryIcon from './EntryIcon';
 
 const ALCOHOL_ICONS = [
   'Ionicons:beer-outline',
@@ -30,20 +29,20 @@ const THC_ICONS = [
   'MaterialCommunityIcons:smoking'
 ];
 
-import EntryIcon from './EntryIcon';
-
 export default function QuickEntry() {
-  const {
-    favorites, addConsumption, addFavorite, consumptions,
-    isQuickEntryVisible, setQuickEntryVisible
-  } = useAppStore();
+  const favorites = useAppStore((state) => state.favorites);
+  const addConsumption = useAppStore((state) => state.addConsumption);
+  const addFavorite = useAppStore((state) => state.addFavorite);
+  const consumptions = useAppStore((state) => state.consumptions);
+  const isQuickEntryVisible = useAppStore((state) => state.isQuickEntryVisible);
+  const setQuickEntryVisible = useAppStore((state) => state.setQuickEntryVisible);
 
   const recentSessionLogs = useMemo(() => {
     if (!isQuickEntryVisible) return [];
     const cutoff = Date.now() - 12 * 60 * 60 * 1000;
     const activeLogs = consumptions.filter(c => c.timestamp > cutoff);
     const uniqueLogs = [];
-    const seen = new Set();
+    const seen = new Set<string>();
     const sorted = [...activeLogs].sort((a, b) => b.timestamp - a.timestamp);
     for (const log of sorted) {
       const key = `${log.type}-${log.name}-${log.volumeOz || log.mg}`;
@@ -58,6 +57,7 @@ export default function QuickEntry() {
   const navigation = useNavigation<any>();
   const [modalVisible, setModalVisible] = useState(false);
   const [customType, setCustomType] = useState<ConsumableType>('alcohol');
+  const [customMethod, setCustomMethod] = useState<IngestionMethod>('edible');
   const [isMixedMode, setIsMixedMode] = useState(false);
   const [customName, setCustomName] = useState('');
   const [customEmoji, setCustomEmoji] = useState(ALCOHOL_ICONS[0]);
@@ -91,6 +91,7 @@ export default function QuickEntry() {
 
   const switchType = (type: ConsumableType) => {
     setCustomType(type);
+    setCustomMethod('edible');
     setIsMixedMode(false);
     setCustomName('');
     setCustomEmoji(type === 'thc' ? THC_ICONS[0] : ALCOHOL_ICONS[0]);
@@ -101,8 +102,18 @@ export default function QuickEntry() {
     setCustomMinutesAgo('0');
   };
 
-  const applyPreset = (type: ConsumableType, name: string, emoji: string, amount: string, abvOrCals: string, duration: string, mixedMode = false) => {
+  const applyPreset = (
+    type: ConsumableType,
+    name: string,
+    emoji: string,
+    amount: string,
+    abvOrCals: string,
+    duration: string,
+    mixedMode = false,
+    method: IngestionMethod = 'edible'
+  ) => {
     setCustomType(type);
+    setCustomMethod(method);
     setIsMixedMode(mixedMode);
     setCustomName(name);
     setCustomEmoji(emoji);
@@ -124,39 +135,39 @@ export default function QuickEntry() {
     let abv = parseFloat(customAbv);
     const duration = parseFloat(customDuration);
     const cals = parseFloat(customCalories);
-    const minsAgo = parseFloat(customMinutesAgo) || 0;
+    const minsAgo = Math.max(0, parseFloat(customMinutesAgo) || 0);
 
-    if (!customName || !customEmoji) {
+    if (!customName.trim() || !customEmoji) {
       AppAlert('Missing Fields', 'Please provide a name and emoji.');
       return;
     }
 
     if (isAlcohol && !isMixed) {
-      if (isNaN(amount) || isNaN(abv) || isNaN(duration)) {
-        AppAlert('Missing Fields', 'Please provide volume, ABV, and duration.');
+      if (isNaN(amount) || amount <= 0 || isNaN(abv) || abv <= 0 || abv > 100 || isNaN(duration) || duration < 0) {
+        AppAlert('Invalid Fields', 'Please provide positive volume, valid ABV (1-100%), and non-negative duration.');
         return;
       }
     } else if (isMixed) {
-      if (isNaN(amount) || isNaN(duration)) {
-        AppAlert('Missing Fields', 'Please provide number of shots and duration.');
+      if (isNaN(amount) || amount <= 0 || isNaN(duration) || duration < 0) {
+        AppAlert('Invalid Fields', 'Please provide positive number of shots and non-negative duration.');
         return;
       }
-      abv = isNaN(abv) ? 40 : abv;
+      abv = isNaN(abv) || abv <= 0 ? 40 : Math.min(100, abv);
       amount = amount * 1.5; // convert shots to volume
     } else {
-      if (isNaN(amount)) {
-        AppAlert('Missing Fields', 'Please provide THC amount in mg.');
+      if (isNaN(amount) || amount <= 0) {
+        AppAlert('Invalid Fields', 'Please provide a positive THC amount in mg.');
         return;
       }
     }
 
     const entry = {
       type: customType,
-      name: customName,
+      name: customName.trim(),
       emoji: customEmoji,
-      durationMins: isAlcohol ? duration : (isNaN(duration) ? 0 : duration),
-      calories: isNaN(cals) ? undefined : cals,
-      ...(isAlcohol ? { volumeOz: amount, abvPercent: abv } : { method: 'edible' as const, mg: amount }),
+      durationMins: isAlcohol ? Math.max(0, duration) : (isNaN(duration) || duration < 0 ? 0 : duration),
+      calories: isNaN(cals) || cals < 0 ? undefined : cals,
+      ...(isAlcohol ? { volumeOz: amount, abvPercent: abv } : { method: customMethod, mg: amount }),
     };
 
     const timestamp = Date.now() - (minsAgo * 60000);
@@ -285,23 +296,43 @@ export default function QuickEntry() {
                 </View>
               ) : (
                 <View style={styles.presetsRow}>
-                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('thc', 'Gummy (10mg)', 'FontAwesome5:cookie-bite', '10', '20', '0', false)}>
+                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('thc', 'Gummy (10mg)', 'FontAwesome5:cookie-bite', '10', '20', '0', false, 'edible')}>
                     <View style={styles.presetEmoji}><EntryIcon iconString="FontAwesome5:cookie-bite" size={24} color={colors.text} /></View>
                     <Text style={styles.presetText}>10mg</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('thc', 'Gummy (5mg)', 'FontAwesome5:cookie-bite', '5', '10', '0', false)}>
+                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('thc', 'Gummy (5mg)', 'FontAwesome5:cookie-bite', '5', '10', '0', false, 'edible')}>
                     <View style={styles.presetEmoji}><EntryIcon iconString="FontAwesome5:cookie-bite" size={24} color={colors.text} /></View>
                     <Text style={styles.presetText}>5mg</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('thc', 'Gummy (2.5mg)', 'FontAwesome5:cookie-bite', '2.5', '5', '0', false)}>
+                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('thc', 'Gummy (2.5mg)', 'FontAwesome5:cookie-bite', '2.5', '5', '0', false, 'edible')}>
                     <View style={styles.presetEmoji}><EntryIcon iconString="FontAwesome5:cookie-bite" size={24} color={colors.text} /></View>
                     <Text style={styles.presetText}>2.5mg</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('thc', 'Puff (2mg)', 'FontAwesome5:wind', '2', '0', '0', false)}>
+                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('thc', 'Puff (2mg)', 'FontAwesome5:wind', '2', '0', '0', false, 'inhaled')}>
                     <View style={styles.presetEmoji}><EntryIcon iconString="FontAwesome5:wind" size={24} color={colors.text} /></View>
                     <Text style={styles.presetText}>Puff</Text>
                   </TouchableOpacity>
                 </View>
+              )}
+
+              {customType === 'thc' && (
+                <>
+                  <Text style={styles.inputLabel}>Ingestion Method</Text>
+                  <View style={styles.typeRow}>
+                    <TouchableOpacity
+                      style={[styles.typeBtn, customMethod === 'edible' && styles.typeBtnActive]}
+                      onPress={() => setCustomMethod('edible')}
+                    >
+                      <Text style={styles.typeText}>Edible</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.typeBtn, customMethod === 'inhaled' && styles.typeBtnActive]}
+                      onPress={() => setCustomMethod('inhaled')}
+                    >
+                      <Text style={styles.typeText}>Inhaled</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
               )}
 
               <View style={styles.inputRow}>

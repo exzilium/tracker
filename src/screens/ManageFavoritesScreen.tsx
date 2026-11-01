@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useAppStore, FavoriteItem, ConsumableType } from '../store';
+import { useAppStore, FavoriteItem, IngestionMethod } from '../store';
 import { colors, typography } from '../theme';
 import EntryIcon from '../components/EntryIcon';
 import { AppAlert } from '../utils/AppAlert';
@@ -28,8 +28,18 @@ const THC_ICONS = [
   'MaterialCommunityIcons:smoking'
 ];
 
-export default function ManageFavoritesScreen({ navigation, route }: any) {
-  const { favorites, removeFavorite, moveFavorite, moveToTopFavorite, updateFavorite, setQuickEntryVisible } = useAppStore();
+interface ManageFavoritesProps {
+  navigation: { goBack: () => void };
+  route: { params?: { returnToQuickEntry?: boolean } };
+}
+
+export default function ManageFavoritesScreen({ navigation, route }: ManageFavoritesProps) {
+  const favorites = useAppStore((state) => state.favorites);
+  const removeFavorite = useAppStore((state) => state.removeFavorite);
+  const moveFavorite = useAppStore((state) => state.moveFavorite);
+  const moveToTopFavorite = useAppStore((state) => state.moveToTopFavorite);
+  const updateFavorite = useAppStore((state) => state.updateFavorite);
+  const setQuickEntryVisible = useAppStore((state) => state.setQuickEntryVisible);
 
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editingFav, setEditingFav] = useState<FavoriteItem | null>(null);
@@ -39,6 +49,7 @@ export default function ManageFavoritesScreen({ navigation, route }: any) {
   const [editEmoji, setEditEmoji] = useState('');
   const [editAmount, setEditAmount] = useState('');
   const [editAbv, setEditAbv] = useState('');
+  const [editMethod, setEditMethod] = useState<IngestionMethod>('edible');
   const [editDuration, setEditDuration] = useState('');
   const [editCalories, setEditCalories] = useState('');
 
@@ -77,6 +88,7 @@ export default function ManageFavoritesScreen({ navigation, route }: any) {
       setEditAbv(fav.abvPercent ? fav.abvPercent.toString() : '');
     } else {
       setEditAmount(fav.mg ? fav.mg.toString() : '');
+      setEditMethod(fav.method || 'edible');
     }
     
     setEditModalVisible(true);
@@ -85,19 +97,21 @@ export default function ManageFavoritesScreen({ navigation, route }: any) {
   const saveEdit = () => {
     if (!editingFav) return;
     
-    const amount = parseFloat(editAmount) || 0;
+    const amount = Math.max(0, parseFloat(editAmount) || 0);
+    const parsedCals = parseFloat(editCalories);
     const updates: Partial<FavoriteItem> = {
-      name: editName,
+      name: editName.trim() || editingFav.name,
       emoji: editEmoji,
-      durationMins: editingFav.type === 'alcohol' ? (parseFloat(editDuration) || 0) : 0,
-      calories: parseFloat(editCalories) || undefined,
+      durationMins: editingFav.type === 'alcohol' ? Math.max(0, parseFloat(editDuration) || 0) : 0,
+      calories: !isNaN(parsedCals) && parsedCals >= 0 ? parsedCals : undefined,
     };
     
     if (editingFav.type === 'alcohol') {
       updates.volumeOz = amount;
-      updates.abvPercent = parseFloat(editAbv) || 0;
+      updates.abvPercent = Math.min(100, Math.max(0, parseFloat(editAbv) || 0));
     } else {
       updates.mg = amount;
+      updates.method = editMethod;
     }
     
     updateFavorite(editingFav.id, updates);
@@ -139,7 +153,7 @@ export default function ManageFavoritesScreen({ navigation, route }: any) {
                   {fav.type === 'alcohol' ? (
                     <Text style={styles.favDesc}>{fav.volumeOz}oz • {fav.abvPercent}% ABV</Text>
                   ) : (
-                    <Text style={styles.favDesc}>{fav.mg}mg THC</Text>
+                    <Text style={styles.favDesc}>{fav.mg}mg THC ({fav.method || 'edible'})</Text>
                   )}
                 </View>
               </View>
@@ -265,26 +279,43 @@ export default function ManageFavoritesScreen({ navigation, route }: any) {
                   </View>
                 </>
               ) : (
-                <View style={styles.inputRow}>
-                  <View style={{flex: 1, marginRight: 8}}>
-                    <Text style={styles.inputLabel}>Amount (mg)</Text>
-                    <TextInput
-                      style={styles.input}
-                      keyboardType="numeric"
-                      value={editAmount}
-                      onChangeText={setEditAmount}
-                    />
+                <>
+                  <Text style={styles.inputLabel}>Ingestion Method</Text>
+                  <View style={styles.typeRow}>
+                    <TouchableOpacity
+                      style={[styles.typeBtn, editMethod === 'edible' && styles.typeBtnActive]}
+                      onPress={() => setEditMethod('edible')}
+                    >
+                      <Text style={styles.typeText}>Edible</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.typeBtn, editMethod === 'inhaled' && styles.typeBtnActive]}
+                      onPress={() => setEditMethod('inhaled')}
+                    >
+                      <Text style={styles.typeText}>Inhaled</Text>
+                    </TouchableOpacity>
                   </View>
-                  <View style={{flex: 1}}>
-                    <Text style={styles.inputLabel}>Calories (est)</Text>
-                    <TextInput
-                      style={styles.input}
-                      keyboardType="numeric"
-                      value={editCalories}
-                      onChangeText={setEditCalories}
-                    />
+                  <View style={styles.inputRow}>
+                    <View style={{flex: 1, marginRight: 8}}>
+                      <Text style={styles.inputLabel}>Amount (mg)</Text>
+                      <TextInput
+                        style={styles.input}
+                        keyboardType="numeric"
+                        value={editAmount}
+                        onChangeText={setEditAmount}
+                      />
+                    </View>
+                    <View style={{flex: 1}}>
+                      <Text style={styles.inputLabel}>Calories (est)</Text>
+                      <TextInput
+                        style={styles.input}
+                        keyboardType="numeric"
+                        value={editCalories}
+                        onChangeText={setEditCalories}
+                      />
+                    </View>
                   </View>
-                </View>
+                </>
               )}
 
               <View style={styles.modalActions}>
@@ -434,6 +465,26 @@ const styles = StyleSheet.create({
     color: colors.text,
     marginBottom: 24,
     textAlign: 'center',
+  },
+  typeRow: {
+    flexDirection: 'row',
+    marginBottom: 16,
+    backgroundColor: colors.surface,
+    borderRadius: 8,
+    padding: 4,
+  },
+  typeBtn: {
+    flex: 1,
+    padding: 12,
+    alignItems: 'center',
+    borderRadius: 6,
+  },
+  typeBtnActive: {
+    backgroundColor: colors.primary,
+  },
+  typeText: {
+    color: colors.text,
+    fontWeight: 'bold',
   },
   inputRow: {
     flexDirection: 'row',

@@ -9,6 +9,7 @@ let BannerAd: any;
 let BannerAdSize: any;
 let TestIds: any;
 let MaxAdContentRating: any;
+let adsInitPromise: Promise<void> | null = null;
 
 if (!isExpoGo) {
   try {
@@ -35,8 +36,8 @@ export default function AdBanner() {
     if (isExpoGo || !mobileAds) return;
 
     let mounted = true;
-    const initAds = async () => {
-      try {
+    if (!adsInitPromise) {
+      adsInitPromise = (async () => {
         if (MaxAdContentRating) {
           await mobileAds().setRequestConfiguration({
             maxAdContentRating: MaxAdContentRating.MA,
@@ -45,13 +46,19 @@ export default function AdBanner() {
           });
         }
         await mobileAds().initialize();
-        if (mounted) setAdsReady(true);
-      } catch (e) {
-        console.warn('Failed to initialize Google Mobile Ads', e);
-      }
-    };
+      })().catch((e) => {
+        adsInitPromise = null;
+        throw e;
+      });
+    }
 
-    initAds();
+    adsInitPromise
+      .then(() => {
+        if (mounted) setAdsReady(true);
+      })
+      .catch((e) => {
+        console.warn('Failed to initialize Google Mobile Ads', e);
+      });
     return () => {
       mounted = false;
     };

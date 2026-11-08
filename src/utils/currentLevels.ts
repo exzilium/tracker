@@ -149,7 +149,33 @@ export const getPeaks = (
   const startSimTime = Math.max(earliestTime, latestTime - 24 * 60 * 60 * 1000);
   const endTime = Math.max(now, latestTime) + 8 * 60 * 60 * 1000;
 
+  const candidateTimes = new Set<number>([now]);
   for (let targetTime = startSimTime; targetTime <= endTime; targetTime += 5 * 60000) {
+    candidateTimes.add(targetTime);
+  }
+  // Include exact piecewise-linear vertices so sharp peaks between 5-min ticks are never missed
+  for (const c of consumptions) {
+    if (!Number.isFinite(c.timestamp)) continue;
+    if (c.timestamp >= startSimTime && c.timestamp <= endTime) {
+      candidateTimes.add(c.timestamp);
+    }
+    if (c.type === 'alcohol') {
+      const durMs = Math.max(0, (c.durationMins || 0) * 60000);
+      const endAbsorb = c.timestamp + durMs;
+      if (endAbsorb >= startSimTime && endAbsorb <= endTime) {
+        candidateTimes.add(endAbsorb);
+      }
+    } else if (c.type === 'thc') {
+      const peakOffsetMins = c.method === 'inhaled' ? 20 : 120;
+      const peakTime = c.timestamp + peakOffsetMins * 60000;
+      if (peakTime >= startSimTime && peakTime <= endTime) {
+        candidateTimes.add(peakTime);
+      }
+    }
+  }
+
+  const sortedCandidates = Array.from(candidateTimes).sort((a, b) => a - b);
+  for (const targetTime of sortedCandidates) {
     const { currentBAC: simBAC, currentTHC: simTHC } = getCurrentLevels(
       consumptions,
       profile,

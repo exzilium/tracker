@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useAppStore } from '../store';
 import { colors, typography } from '../theme';
@@ -12,8 +12,16 @@ const LiveClock = ({ statusColor }: { statusColor: string }) => {
   const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+    const msUntilNextMinute = (60 - new Date().getSeconds()) * 1000;
+    const timeoutId = setTimeout(() => {
+      setCurrentTime(new Date());
+      intervalId = setInterval(() => setCurrentTime(new Date()), 60_000);
+    }, msUntilNextMinute);
+    return () => {
+      clearTimeout(timeoutId);
+      if (intervalId) clearInterval(intervalId);
+    };
   }, []);
 
   return (
@@ -54,9 +62,33 @@ export default function DangerMeter({
   const maxBAC = profile.maxBAC || 0.08;
   const maxTHC = profile.maxTHC || 10;
 
+  const now = Date.now();
+  const isPastBACPeak = peakBAC > 0 && peakBACTime <= now;
+  const isPastTHCPeak = peakTHC > 0 && peakTHCTime <= now;
+  const isBACRising = peakBAC > currentBAC + 0.005 && peakBACTime > now;
+  const isProjectedToSpike =
+    (peakBAC >= maxBAC && currentBAC < maxBAC && peakBACTime > now) ||
+    (peakTHC >= maxTHC && currentTHC < maxTHC && peakTHCTime > now);
+
   const { tensionPercent } = useMemo(() => calculateDangerLevel(
-    currentBAC, maxBAC, peakBAC, currentTHC, maxTHC, peakTHC, currentMood, currentHunger, currentAnxiety
-  ), [currentBAC, maxBAC, peakBAC, currentTHC, maxTHC, peakTHC, currentMood, currentHunger, currentAnxiety]);
+    currentBAC,
+    maxBAC,
+    peakBAC,
+    currentTHC,
+    maxTHC,
+    peakTHC,
+    currentMood,
+    currentHunger,
+    currentAnxiety,
+    isPastBACPeak,
+    isPastTHCPeak
+  ), [currentBAC, maxBAC, peakBAC, currentTHC, maxTHC, peakTHC, currentMood, currentHunger, currentAnxiety, isPastBACPeak, isPastTHCPeak]);
+
+  const prevTensionRef = useRef(tensionPercent);
+  const didTensionDrop = tensionPercent < prevTensionRef.current;
+  useEffect(() => {
+    prevTensionRef.current = tensionPercent;
+  }, [tensionPercent]);
 
   const warningMsg = useMemo(() => generateInsight({
     tensionPercent,
@@ -66,12 +98,31 @@ export default function DangerMeter({
     currentTHC,
     maxTHC,
     peakTHC,
+    isPastBACPeak,
+    isPastTHCPeak,
+    isProjectedToSpike,
+    isBACRising,
+    didTensionDrop,
     mood: currentMood,
     hunger: currentHunger,
     anxiety: currentAnxiety,
-    // Note: Projection and Historical Deltas (isProjectedToSpike, didTensionDrop) 
-    // are stubbed out here until Sprint 4 integrates the projection engine.
-  }), [tensionPercent, currentBAC, maxBAC, peakBAC, currentTHC, maxTHC, peakTHC, currentMood, currentHunger, currentAnxiety]);
+  }), [
+    tensionPercent,
+    currentBAC,
+    maxBAC,
+    peakBAC,
+    currentTHC,
+    maxTHC,
+    peakTHC,
+    isPastBACPeak,
+    isPastTHCPeak,
+    isProjectedToSpike,
+    isBACRising,
+    didTensionDrop,
+    currentMood,
+    currentHunger,
+    currentAnxiety,
+  ]);
 
   let statusColor = colors.success;
   if (tensionPercent >= 100) {

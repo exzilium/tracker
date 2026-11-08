@@ -110,7 +110,10 @@ export default function EditConsumptionModal({ visible, consumption, onClose }: 
 
           <Text style={styles.inputLabel}>Time Logged</Text>
           <View style={styles.timeShiftRow}>
-            <TouchableOpacity style={styles.shiftBtn} onPress={() => setEditTimestamp(editTimestamp - (15 * 60000))}>
+            <TouchableOpacity
+              style={styles.shiftBtn}
+              onPress={() => setEditTimestamp(Math.max(1, editTimestamp - (15 * 60000)))}
+            >
               <Text style={styles.shiftBtnText}>-15m</Text>
             </TouchableOpacity>
             <Text style={styles.timeText}>
@@ -181,26 +184,43 @@ export default function EditConsumptionModal({ visible, consumption, onClose }: 
               </View>
             </>
           ) : (
-            <View style={styles.inputRow}>
-              <View style={{flex: 1, marginRight: 8}}>
-                <Text style={styles.inputLabel}>Amount (mg)</Text>
-                <TextInput
-                  style={styles.input}
-                  keyboardType="numeric"
-                  value={editAmount}
-                  onChangeText={setEditAmount}
-                />
+            <>
+              <Text style={styles.inputLabel}>Ingestion Method</Text>
+              <View style={styles.typeRow}>
+                <TouchableOpacity
+                  style={[styles.typeBtn, editMethod === 'edible' && styles.typeBtnActive]}
+                  onPress={() => setEditMethod('edible')}
+                >
+                  <Text style={styles.typeText}>Edible</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.typeBtn, editMethod === 'inhaled' && styles.typeBtnActive]}
+                  onPress={() => setEditMethod('inhaled')}
+                >
+                  <Text style={styles.typeText}>Inhaled</Text>
+                </TouchableOpacity>
               </View>
-              <View style={{flex: 1}}>
-                <Text style={styles.inputLabel}>Calories (est)</Text>
-                <TextInput
-                  style={styles.input}
-                  keyboardType="numeric"
-                  value={editCalories}
-                  onChangeText={setEditCalories}
-                />
+              <View style={styles.inputRow}>
+                <View style={{flex: 1, marginRight: 8}}>
+                  <Text style={styles.inputLabel}>Amount (mg)</Text>
+                  <TextInput
+                    style={styles.input}
+                    keyboardType="numeric"
+                    value={editAmount}
+                    onChangeText={setEditAmount}
+                  />
+                </View>
+                <View style={{flex: 1}}>
+                  <Text style={styles.inputLabel}>Calories (est)</Text>
+                  <TextInput
+                    style={styles.input}
+                    keyboardType="numeric"
+                    value={editCalories}
+                    onChangeText={setEditCalories}
+                  />
+                </View>
               </View>
-            </View>
+            </>
           )}
 
           <View style={styles.modalActions}>
@@ -236,6 +256,26 @@ const styles = StyleSheet.create({
     color: colors.text,
     marginBottom: 24,
     textAlign: 'center',
+  },
+  typeRow: {
+    flexDirection: 'row',
+    marginBottom: 16,
+    backgroundColor: colors.surface,
+    borderRadius: 8,
+    padding: 4,
+  },
+  typeBtn: {
+    flex: 1,
+    padding: 12,
+    alignItems: 'center',
+    borderRadius: 6,
+  },
+  typeBtnActive: {
+    backgroundColor: colors.primary,
+  },
+  typeText: {
+    color: colors.text,
+    fontWeight: 'bold',
   },
   inputRow: {
     flexDirection: 'row',

@@ -121,6 +121,38 @@ describe('Current Levels - Multi-Drink Pool Integration & Metric Units', () => {
     const metPeaks = getPeaks(logs, metricProfile, t0);
     expect(metPeaks.peakBAC).toBeCloseTo(impPeaks.peakBAC, 4);
   });
+
+  it('captures exact BAC and THC peaks at off-grid vertex timestamps (e.g., +2.5 mins)', () => {
+    const t0 = 1_700_000_000_000;
+    const tOffset = t0 + 2.5 * 60 * 1000; // +2.5 minutes (between 0m and 5m grid ticks)
+
+    const logs: Consumption[] = [
+      {
+        id: 'd1',
+        sessionId: 's1',
+        type: 'alcohol',
+        name: 'Beer',
+        timestamp: t0,
+        volumeOz: 12,
+        abvPercent: 5,
+        durationMins: 45,
+      },
+      {
+        id: 't1',
+        sessionId: 's1',
+        type: 'thc',
+        name: 'Joint',
+        timestamp: tOffset,
+        method: 'inhaled',
+        mg: 10,
+      },
+    ];
+
+    const peaks = getPeaks(logs, baseProfile, t0);
+    // Inhaled 10mg THC at tOffset must peak at exactly 10.0mg at tOffset + 20 mins
+    expect(peaks.peakTHC).toBeCloseTo(10.0, 5);
+    expect(peaks.peakTHCTime).toBe(tOffset + 20 * 60 * 1000);
+  });
 });
 
 describe('Math Engine - THC Pharmacokinetics', () => {

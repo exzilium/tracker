@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppStore, Consumption } from '../store';
 import { colors, typography } from '../theme';
 import { calculateStandardDrinks } from '../utils/mathEngine';
-import { getCurrentLevels } from '../utils/currentLevels';
+import { getPeaks } from '../utils/currentLevels';
 import EntryIcon from '../components/EntryIcon';
 
 export interface SessionData {
@@ -52,21 +52,9 @@ export default function SessionsListScreen({ navigation }: { navigation: { goBac
       let maxTHC = 0;
 
       if (sessionConsumptions.length > 0) {
-        let minTs = sessionConsumptions[0].timestamp;
-        let maxTs = sessionConsumptions[0].timestamp;
-        for (const c of sessionConsumptions) {
-          if (c.timestamp < minTs) minTs = c.timestamp;
-          if (c.timestamp > maxTs) maxTs = c.timestamp;
-        }
-        // Bound simulation window to actual intake span (+12h max tail) to avoid multi-day runaway loops
-        const rawEnd = s.endTime ? s.endTime : Date.now() + 8 * 60 * 60 * 1000;
-        const checkEnd = Math.min(Math.max(rawEnd, maxTs + 2 * 60 * 60 * 1000), maxTs + 12 * 60 * 60 * 1000);
-
-        for (let t = minTs; t <= checkEnd; t += 5 * 60 * 1000) {
-          const { currentBAC, currentTHC } = getCurrentLevels(sessionConsumptions, profile, t);
-          if (currentBAC > maxBAC) maxBAC = currentBAC;
-          if (currentTHC > maxTHC) maxTHC = currentTHC;
-        }
+        const peaks = getPeaks(sessionConsumptions, profile, s.endTime ?? Date.now());
+        maxBAC = peaks.peakBAC;
+        maxTHC = peaks.peakTHC;
       }
 
       sessionConsumptions.forEach((c) => {

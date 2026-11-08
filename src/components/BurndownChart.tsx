@@ -43,7 +43,9 @@ export default function BurndownChart({
   
   const consumptions = consumptionsOverride || storeConsumptions;
   const [timeWindowHours, setTimeWindowHours] = useState(8);
-  const activeTimeWindowHours = fixedTimeWindowHours || timeWindowHours;
+  const rawWindowHours = fixedTimeWindowHours ?? timeWindowHours;
+  const activeTimeWindowHours =
+    Number.isFinite(rawWindowHours) && rawWindowHours > 0 ? rawWindowHours : 8;
 
   const chartStartTime = useMemo(() => {
     if (startTimeOverride) return startTimeOverride;
@@ -94,7 +96,7 @@ export default function BurndownChart({
   const highestBAC = Math.max(...bacPoints, maxBAC);
   const highestTHC = Math.max(...thcPoints, maxTHC);
 
-  const stepX = CHART_WIDTH / numPoints;
+  const stepX = numPoints > 0 ? CHART_WIDTH / numPoints : CHART_WIDTH;
   
   const { bacPathD, thcPathD, limitBacY, limitThcY, midBacY, midThcY } = useMemo(() => {
     const getBacY = (val: number) => Math.max(0, CHART_HEIGHT - (val / highestBAC) * CHART_HEIGHT);
@@ -176,20 +178,8 @@ export default function BurndownChart({
     return { gridLines: grids, labels: lbls };
   }, [now, activeTimeWindowHours, stepX, CHART_WIDTH]);
 
-  const handleScrub = (x: number) => {
-    let idx = Math.round(x / stepX);
-    if (idx < 0) idx = 0;
-    if (idx > numPoints) idx = numPoints;
-    setScrubIdx((prev) => (prev === idx ? prev : idx));
-  };
-
-  const handleScrubRef = useRef(handleScrub);
-  const setScrubIdxRef = useRef(setScrubIdx);
-
-  useEffect(() => {
-    handleScrubRef.current = handleScrub;
-    setScrubIdxRef.current = setScrubIdx;
-  });
+  const layoutRef = useRef({ stepX, numPoints });
+  layoutRef.current = { stepX, numPoints };
 
   // PanResponder for Scrubbing
   const panResponder = useRef(
@@ -197,16 +187,22 @@ export default function BurndownChart({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
       onPanResponderGrant: (evt) => {
-        handleScrubRef.current(evt.nativeEvent.locationX);
+        const { stepX: currentStepX, numPoints: currentNumPoints } = layoutRef.current;
+        if (currentStepX <= 0) return;
+        const idx = Math.max(0, Math.min(currentNumPoints, Math.round(evt.nativeEvent.locationX / currentStepX)));
+        setScrubIdx((prev) => (prev === idx ? prev : idx));
       },
       onPanResponderMove: (evt) => {
-        handleScrubRef.current(evt.nativeEvent.locationX);
+        const { stepX: currentStepX, numPoints: currentNumPoints } = layoutRef.current;
+        if (currentStepX <= 0) return;
+        const idx = Math.max(0, Math.min(currentNumPoints, Math.round(evt.nativeEvent.locationX / currentStepX)));
+        setScrubIdx((prev) => (prev === idx ? prev : idx));
       },
       onPanResponderRelease: () => {
-        setScrubIdxRef.current(null);
+        setScrubIdx(null);
       },
       onPanResponderTerminate: () => {
-        setScrubIdxRef.current(null);
+        setScrubIdx(null);
       }
     })
   ).current;

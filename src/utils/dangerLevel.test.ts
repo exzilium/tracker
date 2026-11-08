@@ -62,6 +62,13 @@ describe('calculateDangerLevel (%T)', () => {
     expect(result.tensionPercent).toBe(95);
   });
 
+  it('should not apply trailing decay when peak is still in the future (ascending limb)', () => {
+    // peakBAC = 0.08 in the future (isPastBACPeak = false), currentBAC = 0.02
+    const result = calculateDangerLevel(0.02, 0.08, 0.08, 0, 10, 10, 3, 3, 3, false, false);
+    // Base BAC = 25%. No trailing penalty because peaks have not occurred yet.
+    expect(result.tensionPercent).toBe(25);
+  });
+
   it('should safely handle NaN or negative values without returning NaN', () => {
     const nanBacResult = calculateDangerLevel(NaN, 0.08, 0.08, 8, 10, 8, 3, 5, 3);
     expect(Number.isFinite(nanBacResult.tensionPercent)).toBe(true);

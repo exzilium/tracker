@@ -259,16 +259,25 @@ export const useAppStore = create<AppState>()(
       },
       merge: (persistedState, currentState) => {
         const typedPersisted = (persistedState as Partial<AppState>) || {};
+        const sessions = Array.isArray(typedPersisted.sessions)
+          ? typedPersisted.sessions
+          : currentState.sessions;
+        const activeSessionId =
+          typeof typedPersisted.activeSessionId === 'string' &&
+          sessions.some((s) => s && s.id === typedPersisted.activeSessionId)
+            ? typedPersisted.activeSessionId
+            : null;
         return {
           ...currentState,
           ...typedPersisted,
+          activeSessionId,
           isQuickEntryVisible: false,
           isStartSessionVisible: false,
           profile: {
             ...currentState.profile,
             ...(typedPersisted.profile || {}),
           },
-          sessions: Array.isArray(typedPersisted.sessions) ? typedPersisted.sessions : currentState.sessions,
+          sessions,
           consumptions: Array.isArray(typedPersisted.consumptions) ? typedPersisted.consumptions : currentState.consumptions,
           favorites: Array.isArray(typedPersisted.favorites) ? typedPersisted.favorites : currentState.favorites,
         };

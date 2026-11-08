@@ -56,4 +56,16 @@ describe('BurndownChart', () => {
     const paths = root.findAllByType('Path' as any);
     expect(paths.length).toBeGreaterThan(0);
   });
+
+  it('falls back safely when fixedTimeWindowHours is 0 or negative', () => {
+    let component!: ReactTestRenderer;
+    act(() => {
+      component = renderer.create(<BurndownChart fixedTimeWindowHours={0} hideTimeToggles={true} />);
+    });
+    const root = component.root;
+    const paths = root.findAllByType('Path' as any);
+    expect(paths.length).toBeGreaterThan(0);
+    expect(paths[0].props.d).not.toContain('Infinity');
+    expect(paths[0].props.d).not.toContain('NaN');
+  });
 });

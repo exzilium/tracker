@@ -6,6 +6,8 @@ export interface InsightParams {
   maxTHC: number;
   peakBAC?: number;
   peakTHC?: number;
+  isPastBACPeak?: boolean;
+  isPastTHCPeak?: boolean;
   mood: number;
   hunger: number;
   anxiety: number;
@@ -23,6 +25,8 @@ export const generateInsight = (params: InsightParams): string => {
     maxTHC,
     peakBAC = 0,
     peakTHC = 0,
+    isPastBACPeak = true,
+    isPastTHCPeak = true,
     mood,
     hunger,
     anxiety,
@@ -33,14 +37,21 @@ export const generateInsight = (params: InsightParams): string => {
 
   // 1. High-Priority Overrides (The Deltas)
   const noActiveHighs = currentBAC <= 0.01 && currentTHC <= 1.0;
-  const hadPastHigh = peakBAC > 0.01 || peakTHC > 1.0;
+  const hadPastHigh =
+    (isPastBACPeak && peakBAC > 0.01) || (isPastTHCPeak && peakTHC > 1.0);
+  const isRisingTowardPeak =
+    (!isPastBACPeak && peakBAC > 0.01) || (!isPastTHCPeak && peakTHC > 1.0);
 
-  if (noActiveHighs && hadPastHigh) {
+  if (noActiveHighs && hadPastHigh && !isRisingTowardPeak) {
     return "You're physically back down. You might still feel some lingering effects, so take it easy if you decide to go back up.";
   }
 
   if (currentBAC >= maxBAC) {
     return "Your physical BAC has crossed your limit. Stop consuming.";
+  }
+
+  if (currentTHC >= maxTHC) {
+    return "Your active THC has crossed your limit. Pause consumption and hydrate.";
   }
 
   if (isProjectedToSpike) {
@@ -102,9 +113,7 @@ export const generateInsight = (params: InsightParams): string => {
     actionStr = "Take a breather or switch to water to protect your vibe.";
   } else {
     // No major subjective culprit, it's just the physical amount
-    if (tensionPercent > 50) {
-       culpritStr = ".";
-    }
+    culpritStr = ".";
   }
 
   return `${statusStr}${culpritStr} ${actionStr}`;

@@ -1,12 +1,29 @@
 import { generateInsight } from './insightEngine';
 
 describe('Insight Engine', () => {
-  it('should return Critical physical override', () => {
+  it('should return Critical physical BAC override', () => {
     const msg = generateInsight({
       tensionPercent: 120, currentBAC: 0.08, maxBAC: 0.08, currentTHC: 0, maxTHC: 10,
       mood: 3, hunger: 3, anxiety: 3
     });
     expect(msg).toBe("Your physical BAC has crossed your limit. Stop consuming.");
+  });
+
+  it('should return Critical THC override when currentTHC crosses maxTHC', () => {
+    const msg = generateInsight({
+      tensionPercent: 120, currentBAC: 0, maxBAC: 0.08, currentTHC: 12, maxTHC: 10,
+      mood: 3, hunger: 3, anxiety: 3
+    });
+    expect(msg).toBe("Your active THC has crossed your limit. Pause consumption and hydrate.");
+  });
+
+  it('should not falsely report comedown at t=0 when peak is in the future', () => {
+    const msg = generateInsight({
+      tensionPercent: 0, currentBAC: 0, maxBAC: 0.08, currentTHC: 0, maxTHC: 10,
+      peakBAC: 0.03, peakTHC: 5, isPastBACPeak: false, isPastTHCPeak: false,
+      mood: 3, hunger: 3, anxiety: 3
+    });
+    expect(msg).toBe("You're just getting started. Pace yourself and enjoy the ride.");
   });
 
   it('should return Impending Spike override', () => {

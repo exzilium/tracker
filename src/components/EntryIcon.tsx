@@ -14,14 +14,14 @@ export default function EntryIcon({ iconString, size = 24, color }: Props) {
   if (iconString.includes(':')) {
     const [family, name] = iconString.split(':');
     
-    if (family === 'Ionicons') {
-      return <Ionicons name={name as any} size={size} color={color} />;
+    if (family === 'Ionicons' && name in Ionicons.glyphMap) {
+      return <Ionicons name={name as keyof typeof Ionicons.glyphMap} size={size} color={color} />;
     }
     if (family === 'FontAwesome5') {
       return <FontAwesome5 name={name as any} size={size} color={color} />;
     }
-    if (family === 'MaterialCommunityIcons') {
-      return <MaterialCommunityIcons name={name as any} size={size} color={color} />;
+    if (family === 'MaterialCommunityIcons' && name in MaterialCommunityIcons.glyphMap) {
+      return <MaterialCommunityIcons name={name as keyof typeof MaterialCommunityIcons.glyphMap} size={size} color={color} />;
     }
   }
 

@@ -43,6 +43,15 @@ export default function DonationScreen({ navigation }: { navigation: { goBack: (
 
         if (typeof RNIap.purchaseUpdatedListener === 'function') {
           purchaseUpdateSub = RNIap.purchaseUpdatedListener(async (purchase: any) => {
+            const sku = purchase?.productId || purchase?.id;
+            if (!sku || !itemSKUs.includes(sku)) return;
+
+            const isPending =
+              purchase?.purchaseStateAndroid === 2 ||
+              purchase?.transactionStateIOS === 'deferred' ||
+              purchase?.transactionStateIOS === 'purchasing';
+            if (isPending) return;
+
             const hasValidToken = Boolean(
               purchase?.purchaseToken || purchase?.transactionReceipt || purchase?.transactionId
             );

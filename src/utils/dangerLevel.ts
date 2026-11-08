@@ -7,7 +7,9 @@ export const calculateDangerLevel = (
   peakTHC: number,
   mood: number,    // 1-5
   hunger: number,  // 1-5
-  anxiety: number  // 1-5
+  anxiety: number, // 1-5
+  isPastBACPeak: boolean = true,
+  isPastTHCPeak: boolean = true
 ): { tensionPercent: number } => {
   const CROSS_FADE_MULTIPLIER = 0.5;
 
@@ -37,11 +39,11 @@ export const calculateDangerLevel = (
 
   // Trailing Decay (Mellanby Effect / Hangover)
   // If we are past the peak and on the way down (or at 0), we add a trailing fatigue penalty
-  if (safePeakBAC > 0 && safeCurrentBAC < safePeakBAC * 0.5) {
+  if (isPastBACPeak && safePeakBAC > 0 && safeCurrentBAC < safePeakBAC * 0.5) {
     // Lingering feeling even when BAC is low
     baseDanger += 10;
   }
-  if (safePeakTHC > 0 && safeCurrentTHC < safePeakTHC * 0.5) {
+  if (isPastTHCPeak && safePeakTHC > 0 && safeCurrentTHC < safePeakTHC * 0.5) {
     baseDanger += 5;
   }
 

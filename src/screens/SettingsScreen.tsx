@@ -11,8 +11,14 @@ import { AppAlert } from '../utils/AppAlert';
 import { KG_TO_LBS } from '../utils/currentLevels';
 
 const MAX_BACKUP_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
+const MAX_ITEMS_PER_COLLECTION = 10_000;
+const MAX_VOLUME_OZ = 500;
+const MAX_THC_MG = 5_000;
+const MAX_DURATION_MINS = 1_440; // 24 hours
+const MAX_CALORIES = 50_000;
+const MAX_EMOJI_LENGTH = 64;
 
-function sanitizeImportedData(parsed: unknown) {
+export function sanitizeImportedData(parsed: unknown) {
   if (!parsed || typeof parsed !== 'object') return null;
   const raw = parsed as Record<string, unknown>;
 
@@ -44,17 +50,37 @@ function sanitizeImportedData(parsed: unknown) {
   if (!Array.isArray(raw.consumptions)) return null;
 
   const rawSessions = Array.isArray(raw.sessions) ? raw.sessions : [];
+  if (
+    rawSessions.length > MAX_ITEMS_PER_COLLECTION ||
+    raw.consumptions.length > MAX_ITEMS_PER_COLLECTION
+  ) {
+    return null;
+  }
+
   const sessions: Session[] = [];
   const validSessionIds = new Set<string>();
+  const maxAllowedTimestamp = Date.now() + 24 * 60 * 60 * 1000;
 
   for (const s of rawSessions) {
     if (!s || typeof s !== 'object') continue;
     const item = s as Record<string, unknown>;
-    if (typeof item.id !== 'string' || !item.id) continue;
+    if (
+      typeof item.id !== 'string' ||
+      !item.id ||
+      item.id.length > 128 ||
+      validSessionIds.has(item.id)
+    ) {
+      continue;
+    }
     const startTime = Number(item.startTime);
-    if (!Number.isFinite(startTime) || startTime <= 0) continue;
+    if (!Number.isFinite(startTime) || startTime <= 0 || startTime > maxAllowedTimestamp) continue;
     const endTime = item.endTime === null || item.endTime === undefined ? null : Number(item.endTime);
-    if (endTime !== null && (!Number.isFinite(endTime) || endTime < startTime)) continue;
+    if (
+      endTime !== null &&
+      (!Number.isFinite(endTime) || endTime < startTime || endTime > maxAllowedTimestamp)
+    ) {
+      continue;
+    }
 
     const clampScale = (v: unknown) => {
       const n = Number(v);
@@ -73,15 +99,24 @@ function sanitizeImportedData(parsed: unknown) {
   }
 
   const consumptions: Consumption[] = [];
+  const seenConsumptionIds = new Set<string>();
   for (const c of raw.consumptions) {
     if (!c || typeof c !== 'object') continue;
     const item = c as Record<string, unknown>;
-    if (typeof item.id !== 'string' || !item.id) continue;
-    if (typeof item.sessionId !== 'string' || !item.sessionId) continue;
+    if (
+      typeof item.id !== 'string' ||
+      !item.id ||
+      item.id.length > 128 ||
+      seenConsumptionIds.has(item.id)
+    ) {
+      continue;
+    }
+    if (typeof item.sessionId !== 'string' || !validSessionIds.has(item.sessionId)) continue;
     if (item.type !== 'alcohol' && item.type !== 'thc') continue;
     if (typeof item.name !== 'string' || !item.name.trim()) continue;
     const timestamp = Number(item.timestamp);
-    if (!Number.isFinite(timestamp) || timestamp <= 0) continue;
+    if (!Number.isFinite(timestamp) || timestamp <= 0 || timestamp > maxAllowedTimestamp) continue;
+    seenConsumptionIds.add(item.id);
 
     const volumeOz = item.volumeOz !== undefined ? Number(item.volumeOz) : undefined;
     const abvPercent = item.abvPercent !== undefined ? Number(item.abvPercent) : undefined;
@@ -94,28 +129,55 @@ function sanitizeImportedData(parsed: unknown) {
       sessionId: item.sessionId,
       type: item.type,
       name: item.name.slice(0, 120),
-      emoji: typeof item.emoji === 'string' ? item.emoji : undefined,
+      emoji:
+        typeof item.emoji === 'string' && item.emoji.length <= MAX_EMOJI_LENGTH
+          ? item.emoji
+          : undefined,
       timestamp,
-      calories: calories !== undefined && Number.isFinite(calories) && calories >= 0 ? calories : undefined,
-      durationMins: durationMins !== undefined && Number.isFinite(durationMins) && durationMins >= 0 ? durationMins : 0,
-      volumeOz: volumeOz !== undefined && Number.isFinite(volumeOz) && volumeOz >= 0 ? volumeOz : undefined,
+      calories:
+        calories !== undefined && Number.isFinite(calories) && calories >= 0 && calories <= MAX_CALORIES
+          ? calories
+          : undefined,
+      durationMins:
+        durationMins !== undefined &&
+        Number.isFinite(durationMins) &&
+        durationMins >= 0 &&
+        durationMins <= MAX_DURATION_MINS
+          ? durationMins
+          : 0,
+      volumeOz:
+        volumeOz !== undefined && Number.isFinite(volumeOz) && volumeOz > 0 && volumeOz <= MAX_VOLUME_OZ
+          ? volumeOz
+          : undefined,
       abvPercent:
-        abvPercent !== undefined && Number.isFinite(abvPercent) && abvPercent >= 0 && abvPercent <= 100
+        abvPercent !== undefined && Number.isFinite(abvPercent) && abvPercent > 0 && abvPercent <= 100
           ? abvPercent
           : undefined,
       method: item.method === 'inhaled' || item.method === 'edible' ? item.method : undefined,
-      mg: mg !== undefined && Number.isFinite(mg) && mg >= 0 ? mg : undefined,
+      mg:
+        mg !== undefined && Number.isFinite(mg) && mg > 0 && mg <= MAX_THC_MG
+          ? mg
+          : undefined,
     });
   }
 
   const favorites: FavoriteItem[] = [];
-  if (Array.isArray(raw.favorites)) {
+  const seenFavoriteIds = new Set<string>();
+  if (Array.isArray(raw.favorites) && raw.favorites.length <= MAX_ITEMS_PER_COLLECTION) {
     for (const f of raw.favorites) {
       if (!f || typeof f !== 'object') continue;
       const item = f as Record<string, unknown>;
-      if (typeof item.id !== 'string' || !item.id) continue;
+      if (
+        typeof item.id !== 'string' ||
+        !item.id ||
+        item.id.length > 128 ||
+        seenFavoriteIds.has(item.id)
+      ) {
+        continue;
+      }
       if (item.type !== 'alcohol' && item.type !== 'thc') continue;
       if (typeof item.name !== 'string' || !item.name.trim()) continue;
+      seenFavoriteIds.add(item.id);
 
       const volumeOz = item.volumeOz !== undefined ? Number(item.volumeOz) : undefined;
       const abvPercent = item.abvPercent !== undefined ? Number(item.abvPercent) : undefined;
@@ -127,16 +189,34 @@ function sanitizeImportedData(parsed: unknown) {
         id: item.id,
         type: item.type,
         name: item.name.slice(0, 120),
-        emoji: typeof item.emoji === 'string' ? item.emoji : undefined,
-        calories: calories !== undefined && Number.isFinite(calories) && calories >= 0 ? calories : undefined,
-        durationMins: durationMins !== undefined && Number.isFinite(durationMins) && durationMins >= 0 ? durationMins : 0,
-        volumeOz: volumeOz !== undefined && Number.isFinite(volumeOz) && volumeOz >= 0 ? volumeOz : undefined,
+        emoji:
+          typeof item.emoji === 'string' && item.emoji.length <= MAX_EMOJI_LENGTH
+            ? item.emoji
+            : undefined,
+        calories:
+          calories !== undefined && Number.isFinite(calories) && calories >= 0 && calories <= MAX_CALORIES
+            ? calories
+            : undefined,
+        durationMins:
+          durationMins !== undefined &&
+          Number.isFinite(durationMins) &&
+          durationMins >= 0 &&
+          durationMins <= MAX_DURATION_MINS
+            ? durationMins
+            : 0,
+        volumeOz:
+          volumeOz !== undefined && Number.isFinite(volumeOz) && volumeOz > 0 && volumeOz <= MAX_VOLUME_OZ
+            ? volumeOz
+            : undefined,
         abvPercent:
-          abvPercent !== undefined && Number.isFinite(abvPercent) && abvPercent >= 0 && abvPercent <= 100
+          abvPercent !== undefined && Number.isFinite(abvPercent) && abvPercent > 0 && abvPercent <= 100
             ? abvPercent
             : undefined,
         method: item.method === 'inhaled' || item.method === 'edible' ? item.method : undefined,
-        mg: mg !== undefined && Number.isFinite(mg) && mg >= 0 ? mg : undefined,
+        mg:
+          mg !== undefined && Number.isFinite(mg) && mg > 0 && mg <= MAX_THC_MG
+            ? mg
+            : undefined,
       });
     }
   }
@@ -179,6 +259,24 @@ export default function SettingsScreen({ navigation }: { navigation: { goBack: (
 
   const [bacLimitStr, setBacLimitStr] = useState(profile.maxBAC ? profile.maxBAC.toString() : '0.08');
   const [thcLimitStr, setThcLimitStr] = useState(profile.maxTHC ? profile.maxTHC.toString() : '10');
+
+  useEffect(() => {
+    setUnits(profile.units);
+    setGender(profile.gender);
+    setWeightStr(profile.weight ? profile.weight.toString() : '');
+    const h = profile.height || 0;
+    if (profile.units === 'metric') {
+      setHeightCmStr(h ? h.toString() : '');
+      setHeightFtStr('');
+      setHeightInStr('');
+    } else {
+      setHeightFtStr(h ? Math.floor(h / 12).toString() : '');
+      setHeightInStr(h ? (h % 12).toString() : '');
+      setHeightCmStr('');
+    }
+    setBacLimitStr(profile.maxBAC ? profile.maxBAC.toString() : '0.08');
+    setThcLimitStr(profile.maxTHC ? profile.maxTHC.toString() : '10');
+  }, [profile]);
 
   const isMetric = units === 'metric';
 
@@ -298,17 +396,28 @@ export default function SettingsScreen({ navigation }: { navigation: { goBack: (
         const a = document.createElement('a');
         a.href = url;
         a.download = filename;
+        document.body.appendChild(a);
         a.click();
-        URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
       } else {
-        const exportFile = new File(Paths.document, filename);
-        exportFile.write(exportJson);
-        
-        const isSharable = await Sharing.isAvailableAsync();
-        if (isSharable) {
-          await Sharing.shareAsync(exportFile.uri);
-        } else {
-          AppAlert('Error', 'File sharing is not available on this device');
+        const exportFile = new File(Paths.cache, filename);
+        try {
+          exportFile.write(exportJson);
+          
+          const isSharable = await Sharing.isAvailableAsync();
+          if (isSharable) {
+            await Sharing.shareAsync(exportFile.uri, {
+              mimeType: 'application/json',
+              UTI: 'public.json',
+            });
+          } else {
+            AppAlert('Error', 'File sharing is not available on this device');
+          }
+        } finally {
+          if (exportFile.exists) {
+            exportFile.delete();
+          }
         }
       }
     } catch (e) {
@@ -348,11 +457,17 @@ export default function SettingsScreen({ navigation }: { navigation: { goBack: (
         }
       } else {
         const importedFile = new File(asset.uri);
-        if (importedFile.size > MAX_BACKUP_SIZE_BYTES) {
-          AppAlert('File Too Large', 'The selected backup file exceeds the 5MB safety limit.');
-          return;
+        try {
+          if (importedFile.size > MAX_BACKUP_SIZE_BYTES) {
+            AppAlert('File Too Large', 'The selected backup file exceeds the 5MB safety limit.');
+            return;
+          }
+          jsonStr = await importedFile.text();
+        } finally {
+          if (importedFile.exists) {
+            importedFile.delete();
+          }
         }
-        jsonStr = await importedFile.text();
       }
 
       const parsed = JSON.parse(jsonStr);
@@ -383,6 +498,16 @@ export default function SettingsScreen({ navigation }: { navigation: { goBack: (
               setUnits(sanitized.profile.units);
               setGender(sanitized.profile.gender);
               setWeightStr(sanitized.profile.weight.toString());
+              const impH = sanitized.profile.height || 0;
+              if (sanitized.profile.units === 'metric') {
+                setHeightCmStr(impH ? impH.toString() : '');
+                setHeightFtStr('');
+                setHeightInStr('');
+              } else {
+                setHeightFtStr(impH ? Math.floor(impH / 12).toString() : '');
+                setHeightInStr(impH ? (impH % 12).toString() : '');
+                setHeightCmStr('');
+              }
               setBacLimitStr(sanitized.profile.maxBAC.toString());
               setThcLimitStr(sanitized.profile.maxTHC.toString());
               AppAlert('Success', 'Data imported successfully.');

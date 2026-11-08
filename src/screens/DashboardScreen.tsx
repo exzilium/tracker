@@ -73,14 +73,24 @@ export default function DashboardScreen({ navigation }: { navigation: { navigate
       .sort((a, b) => b.timestamp - a.timestamp);
   }, [consumptions, activeSessionId]);
 
+  // Physiological levels must account for any recent intake within the 24h metabolic window,
+  // even if the user ended a prior session before reaching 0.000 BAC / 0.0mg THC.
+  const metabolicWindowLogs = useMemo(() => {
+    if (!activeSessionId) return [];
+    const cutoff = lastRefreshed - 24 * 60 * 60 * 1000;
+    return consumptions.filter(
+      (c) => c.sessionId === activeSessionId || c.timestamp >= cutoff
+    );
+  }, [consumptions, activeSessionId, lastRefreshed]);
+
   const levels = useMemo(
-    () => getCurrentLevels(currentSessionLogs, profile, lastRefreshed),
-    [currentSessionLogs, profile, lastRefreshed]
+    () => getCurrentLevels(metabolicWindowLogs, profile, lastRefreshed),
+    [metabolicWindowLogs, profile, lastRefreshed]
   );
 
   const peaks = useMemo(
-    () => getPeaks(currentSessionLogs, profile, lastRefreshed),
-    [currentSessionLogs, profile, lastRefreshed]
+    () => getPeaks(metabolicWindowLogs, profile, lastRefreshed),
+    [metabolicWindowLogs, profile, lastRefreshed]
   );
 
   // Biological Reset logic for active session
@@ -184,7 +194,7 @@ export default function DashboardScreen({ navigation }: { navigation: { navigate
               onAnxietyChange={(v) => updateSessionState(activeSession.mood, activeSession.hunger, v)}
             />
 
-            <BurndownChart consumptionsOverride={currentSessionLogs} lastRefreshed={lastRefreshed} />
+            <BurndownChart consumptionsOverride={metabolicWindowLogs} lastRefreshed={lastRefreshed} />
             
             <AdBanner />
 

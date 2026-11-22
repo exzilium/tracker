@@ -39,8 +39,6 @@ const DummyComponent = () => null;
 
 function MainTabNavigator() {
   const setQuickEntryVisible = useAppStore((state) => state.setQuickEntryVisible);
-  const setStartSessionVisible = useAppStore((state) => state.setStartSessionVisible);
-  const activeSessionId = useAppStore((state) => state.activeSessionId);
   const insets = useSafeAreaInsets();
   
   return (
@@ -83,11 +81,7 @@ function MainTabNavigator() {
         listeners={{
           tabPress: (e) => {
             e.preventDefault();
-            if (activeSessionId) {
-              setQuickEntryVisible(true);
-            } else {
-              setStartSessionVisible(true);
-            }
+            setQuickEntryVisible(true, 'default');
           },
         }}
       />

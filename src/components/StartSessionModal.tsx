@@ -40,14 +40,14 @@ export default function StartSessionModal() {
       mg: f.mg,
     }));
     
-    startSession(mood, hunger, anxiety, initialConsumptions);
+    startSession(mood, hunger, anxiety, initialConsumptions, true);
     setSelectedFavorites([]);
     setStartSessionVisible(false);
   };
 
   const handleCustomStart = () => {
     handleStart(); // start session with any selected favorites
-    useAppStore.getState().setQuickEntryVisible(true); // then pop open the global custom item creator
+    useAppStore.getState().setQuickEntryVisible(true, 'custom'); // then pop open the global custom item creator
   };
 
   return (

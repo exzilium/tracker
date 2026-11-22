@@ -94,6 +94,9 @@ export function sanitizeImportedData(parsed: unknown) {
       mood: clampScale(item.mood),
       hunger: clampScale(item.hunger),
       anxiety: clampScale(item.anxiety),
+      ...(typeof item.hasSubjectiveCheckIn === 'boolean'
+        ? { hasSubjectiveCheckIn: item.hasSubjectiveCheckIn }
+        : {}),
     });
     validSessionIds.add(item.id);
   }

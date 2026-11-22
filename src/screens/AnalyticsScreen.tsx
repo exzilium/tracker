@@ -38,6 +38,7 @@ export default function AnalyticsScreen({ navigation }: { navigation: { goBack: 
       avgMood: lastSession.mood, 
       avgHunger: lastSession.hunger,
       avgAnxiety: lastSession.anxiety,
+      hasSubjectiveCheckIn: lastSession.hasSubjectiveCheckIn !== false,
       logCount: sessionLogs.length 
     };
   }, [sessions, consumptions, profile]);
@@ -79,12 +80,12 @@ export default function AnalyticsScreen({ navigation }: { navigation: { goBack: 
         <View style={styles.grid}>
           <View style={styles.card}>
             <Text style={styles.cardLabel}>Final Mood (1-5)</Text>
-            <Text style={styles.cardValue}>{snapshot.avgMood}</Text>
+            <Text style={styles.cardValue}>{snapshot.hasSubjectiveCheckIn ? snapshot.avgMood : '—'}</Text>
           </View>
 
           <View style={styles.card}>
             <Text style={styles.cardLabel}>Anxiety (1-5)</Text>
-            <Text style={styles.cardValue}>{snapshot.avgAnxiety}</Text>
+            <Text style={styles.cardValue}>{snapshot.hasSubjectiveCheckIn ? snapshot.avgAnxiety : '—'}</Text>
           </View>
         </View>
 

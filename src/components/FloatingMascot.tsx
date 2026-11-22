@@ -4,7 +4,7 @@ import { colors } from '../theme';
 
 const STAR_COUNT = 12; // less frequent
 
-export default function FloatingMascot() {
+export default function FloatingMascot({ compact = false }: { compact?: boolean }) {
   const { width } = useWindowDimensions();
   const floatAnim = useRef(new Animated.Value(0)).current;
   const starAnims = useRef([...Array(STAR_COUNT)].map(() => new Animated.Value(0))).current;
@@ -66,7 +66,7 @@ export default function FloatingMascot() {
   }, [floatAnim, starAnims]);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, compact && styles.containerCompact]}>
       {/* Render Stars */}
       {starAnims.map((anim, i) => {
         const config = starConfigs[i];
@@ -83,7 +83,7 @@ export default function FloatingMascot() {
                   {
                     translateY: anim.interpolate({
                       inputRange: [0, 1],
-                      outputRange: [-20, 200] // flow downwards
+                      outputRange: [-20, compact ? 150 : 200] // flow downwards
                     })
                   }
                 ],
@@ -105,6 +105,7 @@ export default function FloatingMascot() {
         source={require('../../assets/icon-transparent.png')} 
         style={[
           styles.mascot,
+          compact && styles.mascotCompact,
           { transform: [{ translateY: floatAnim }] }
         ]}
         resizeMode="contain"
@@ -123,11 +124,19 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     position: 'relative',
   },
+  containerCompact: {
+    height: 168,
+    marginBottom: 8,
+  },
   mascot: {
     width: 240,
     height: 240,
     opacity: 1,
     zIndex: 10,
+  },
+  mascotCompact: {
+    width: 144,
+    height: 144,
   },
   star: {
     position: 'absolute',

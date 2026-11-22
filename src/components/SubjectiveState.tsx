@@ -3,14 +3,15 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { colors, typography } from '../theme';
 
-const MOOD_LABELS = ['Horrible', 'Bad', 'Normal', 'Good', "I'm Rollin'"];
-const HUNGER_LABELS = ['No mas!', 'Full', 'Not hungry', 'Hungry', 'Starving!'];
-const ANXIETY_LABELS = ['Zen', 'Calm', 'Normal', 'High', 'Very High'];
+export const MOOD_LABELS = ['Horrible', 'Bad', 'Normal', 'Good', "I'm Rollin'"];
+export const HUNGER_LABELS = ['No mas!', 'Full', 'Not hungry', 'Hungry', 'Starving!'];
+export const ANXIETY_LABELS = ['Zen', 'Calm', 'Normal', 'High', 'Very High'];
 
 interface Props {
   mood: number;
   hunger: number;
   anxiety: number;
+  isUnset?: boolean;
   onMoodChange: (val: number) => void;
   onHungerChange: (val: number) => void;
   onAnxietyChange: (val: number) => void;
@@ -21,18 +22,20 @@ const SegmentedControlRow = ({
   value, 
   onChange, 
   activeColor, 
-  labels 
+  labels,
+  isUnset = false,
 }: { 
   label: string, 
   value: number, 
   onChange: (v: number) => void, 
   activeColor: string,
-  labels: string[]
+  labels: string[],
+  isUnset?: boolean,
 }) => {
   
   const handlePress = (val: number) => {
-    if (val !== value) {
-      Haptics.selectionAsync();
+    if (isUnset || val !== value) {
+      Promise.resolve(Haptics.selectionAsync()).catch(() => {});
       onChange(val);
     }
   };
@@ -43,14 +46,16 @@ const SegmentedControlRow = ({
       
       <View style={styles.segmentedContainer}>
         {[1, 2, 3, 4, 5].map((val) => {
-          const isActive = value === val;
+          const isActive = !isUnset && value === val;
+          const isDefaultHint = isUnset && val === 3;
           return (
             <TouchableOpacity
               key={val}
               activeOpacity={0.7}
               style={[
                 styles.segmentBtn,
-                isActive && { backgroundColor: activeColor, borderColor: activeColor }
+                isActive && { backgroundColor: activeColor, borderColor: activeColor },
+                isDefaultHint && styles.segmentBtnUnsetHint,
               ]}
               onPress={() => handlePress(val)}
             >
@@ -64,7 +69,7 @@ const SegmentedControlRow = ({
       
       <View style={styles.tickLabels}>
         {labels.map((lbl, idx) => (
-          <Text key={idx} style={[styles.tickText, value === idx + 1 && styles.tickTextActive]}>
+          <Text key={idx} style={[styles.tickText, !isUnset && value === idx + 1 && styles.tickTextActive]}>
             {lbl}
           </Text>
         ))}
@@ -77,6 +82,7 @@ export default function SubjectiveState({
   mood,
   hunger,
   anxiety,
+  isUnset = false,
   onMoodChange,
   onHungerChange,
   onAnxietyChange,
@@ -89,6 +95,7 @@ export default function SubjectiveState({
         onChange={onMoodChange}
         activeColor="#4A90E2"
         labels={MOOD_LABELS}
+        isUnset={isUnset}
       />
       
       <SegmentedControlRow
@@ -97,6 +104,7 @@ export default function SubjectiveState({
         onChange={onHungerChange}
         activeColor={colors.warning}
         labels={HUNGER_LABELS}
+        isUnset={isUnset}
       />
       
       <SegmentedControlRow
@@ -105,6 +113,7 @@ export default function SubjectiveState({
         onChange={onAnxietyChange}
         activeColor={colors.error}
         labels={ANXIETY_LABELS}
+        isUnset={isUnset}
       />
     </View>
   );
@@ -138,6 +147,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
     borderRadius: 8,
+  },
+  segmentBtnUnsetHint: {
+    borderColor: 'rgba(255,255,255,0.28)',
   },
   segmentBtnText: {
     ...typography.body,

@@ -2,17 +2,20 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, AppState } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useAppStore, Consumption } from '../store';
+import * as Haptics from 'expo-haptics';
+import { useAppStore, Consumption, FavoriteItem } from '../store';
 import { colors, typography } from '../theme';
 import DangerMeter from '../components/DangerMeter';
+import PacingBar from '../components/PacingBar';
+import VibeCheckBar from '../components/VibeCheckBar';
 import EntryIcon from '../components/EntryIcon';
 import BurndownChart from '../components/BurndownChart';
 import AdBanner from '../components/BannerAd';
-import SubjectiveState from '../components/SubjectiveState';
 import EditConsumptionModal from '../components/EditConsumptionModal';
 import EndSessionConfirmModal from '../components/EndSessionConfirmModal';
-import { registerForPushNotificationsAsync } from '../utils/notifications';
+import { registerForPushNotificationsAsync, scheduleHydrationReminder } from '../utils/notifications';
 import { getCurrentLevels, getPeaks } from '../utils/currentLevels';
+import { formatFavoriteSubtitle } from '../utils/pacingStats';
 import { AppAlert } from '../utils/AppAlert';
 import FloatingMascot from '../components/FloatingMascot';
 
@@ -29,17 +32,24 @@ const timeAgo = (ts: number) => {
 export default function DashboardScreen({ navigation }: { navigation: { navigate: (screen: string, params?: any) => void } }) {
   const consumptions = useAppStore((state) => state.consumptions);
   const sessions = useAppStore((state) => state.sessions);
+  const favorites = useAppStore((state) => state.favorites);
   const activeSessionId = useAppStore((state) => state.activeSessionId);
   const profile = useAppStore((state) => state.profile);
+  const addConsumption = useAppStore((state) => state.addConsumption);
   const removeConsumption = useAppStore((state) => state.removeConsumption);
   const updateSessionState = useAppStore((state) => state.updateSessionState);
   const endSession = useAppStore((state) => state.endSession);
   const setStartSessionVisible = useAppStore((state) => state.setStartSessionVisible);
+  const setQuickEntryVisible = useAppStore((state) => state.setQuickEntryVisible);
 
   const [editingLog, setEditingLog] = useState<Consumption | null>(null);
   const [endSessionConfirmVisible, setEndSessionConfirmVisible] = useState(false);
   const [lastRefreshed, setLastRefreshed] = useState(Date.now());
   const [autoClosePrompted, setAutoClosePrompted] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLastRefreshed(Date.now());
+  }, [consumptions]);
 
   useEffect(() => {
     registerForPushNotificationsAsync();
@@ -142,6 +152,23 @@ export default function DashboardScreen({ navigation }: { navigation: { navigate
     );
   };
 
+  const handleQuickLaunchFavorite = (fav: FavoriteItem) => {
+    Promise.resolve(Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)).catch(() => {});
+    addConsumption({
+      type: fav.type,
+      name: fav.name,
+      emoji: fav.emoji,
+      volumeOz: fav.volumeOz,
+      abvPercent: fav.abvPercent,
+      method: fav.method,
+      mg: fav.mg,
+      durationMins: fav.durationMins,
+      calories: fav.calories,
+      timestamp: Date.now(),
+    });
+    scheduleHydrationReminder();
+  };
+
   const confirmEndSession = () => {
     setEndSessionConfirmVisible(false);
     if (activeSession) {
@@ -163,14 +190,62 @@ export default function DashboardScreen({ navigation }: { navigation: { navigate
         {!activeSessionId || !activeSession ? (
           <View style={styles.emptyState}>
             <View style={styles.emptyStateContent}>
-              <FloatingMascot />
-              <Text style={styles.emptyTitle}>Awaiting Launch...</Text>
-              <Text style={styles.emptySubtitle}>Log your mood and intent before you start consuming.</Text>
-              <TouchableOpacity style={styles.startBtn} onPress={() => setStartSessionVisible(true)}>
-                <Text style={styles.startBtnText}>Start New Session</Text>
+              <FloatingMascot compact />
+              <Text style={styles.emptyTitle}>Quick Launch</Text>
+              <Text style={styles.emptySubtitle}>Tap a favorite to start tracking instantly.</Text>
+
+              {favorites.length > 0 && (
+                <>
+                  <View style={styles.favoritesGrid}>
+                    {favorites.map((fav) => {
+                      const subtitle = formatFavoriteSubtitle(fav);
+                      return (
+                        <TouchableOpacity
+                          key={fav.id}
+                          activeOpacity={0.75}
+                          style={styles.favCard}
+                          onPress={() => handleQuickLaunchFavorite(fav)}
+                          onLongPress={() => navigation.navigate('ManageFavorites')}
+                        >
+                          <View style={styles.favIconContainer}>
+                            <EntryIcon
+                              iconString={fav.emoji || (fav.type === 'alcohol' ? '🍺' : '🍃')}
+                              size={28}
+                              color={fav.type === 'thc' ? colors.secondary : colors.primary}
+                            />
+                          </View>
+                          <Text style={styles.favName} numberOfLines={2}>
+                            {fav.name}
+                          </Text>
+                          {!!subtitle && (
+                            <Text style={styles.favSubtitle} numberOfLines={1}>
+                              {subtitle}
+                            </Text>
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+
+                  <Text style={styles.manageHint}>Long press any favorite to manage</Text>
+                </>
+              )}
+
+              <TouchableOpacity
+                style={styles.customLaunchBtn}
+                onPress={() => setQuickEntryVisible(true, 'custom')}
+              >
+                <Text style={styles.customLaunchBtnText}>+ Custom Entry</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.mindfulBtn}
+                onPress={() => setStartSessionVisible(true)}
+              >
+                <Text style={styles.mindfulBtnText}>Mindful Check-In &amp; Start</Text>
               </TouchableOpacity>
             </View>
-            <View style={{ marginTop: 40, alignItems: 'center' }}>
+            <View style={{ marginTop: 24, alignItems: 'center' }}>
                <AdBanner />
             </View>
           </View>
@@ -185,13 +260,20 @@ export default function DashboardScreen({ navigation }: { navigation: { navigate
               peakTHCTime={peaks.peakTHCTime}
             />
 
-            <SubjectiveState 
+            <PacingBar
+              consumptions={currentSessionLogs}
+              sessionStartTime={activeSession.startTime}
+            />
+
+            <VibeCheckBar
               mood={activeSession.mood}
               hunger={activeSession.hunger}
               anxiety={activeSession.anxiety}
+              hasCheckedIn={activeSession.hasSubjectiveCheckIn !== false}
               onMoodChange={(v) => updateSessionState(v, activeSession.hunger, activeSession.anxiety)}
               onHungerChange={(v) => updateSessionState(activeSession.mood, v, activeSession.anxiety)}
               onAnxietyChange={(v) => updateSessionState(activeSession.mood, activeSession.hunger, v)}
+              onLogAllNormal={() => updateSessionState(3, 3, 3)}
             />
 
             <BurndownChart consumptionsOverride={metabolicWindowLogs} lastRefreshed={lastRefreshed} />
@@ -356,7 +438,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   emptyState: {
-    marginTop: 64,
+    marginTop: 12,
   },
   emptyStateContent: {
     paddingHorizontal: 24,
@@ -364,34 +446,89 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     ...typography.h1,
-    fontSize: 28,
+    fontSize: 26,
     color: colors.text,
-    marginBottom: 8,
+    marginBottom: 4,
     textAlign: 'center',
   },
   emptySubtitle: {
     ...typography.body,
     color: colors.textSecondary,
     textAlign: 'center',
-    marginBottom: 32,
+    marginBottom: 20,
   },
-  startBtn: {
-    backgroundColor: colors.primary,
-    borderRadius: 16,
-    paddingVertical: 18,
-    paddingHorizontal: 32,
+  favoritesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 12,
+    width: '100%',
+  },
+  favCard: {
+    width: '48%',
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 14,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  favIconContainer: {
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  favName: {
+    ...typography.caption,
+    color: colors.text,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  favSubtitle: {
+    ...typography.caption,
+    fontSize: 11,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  manageHint: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginTop: 10,
+    marginBottom: 16,
+  },
+  customLaunchBtn: {
+    backgroundColor: 'rgba(187, 134, 252, 0.14)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(187, 134, 252, 0.35)',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
     width: '100%',
     alignItems: 'center',
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
+    marginBottom: 12,
   },
-  startBtnText: {
+  customLaunchBtnText: {
     ...typography.body,
-    color: '#000',
+    color: colors.primary,
     fontWeight: 'bold',
-    fontSize: 18,
+  },
+  mindfulBtn: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    width: '100%',
+    alignItems: 'center',
+  },
+  mindfulBtnText: {
+    ...typography.body,
+    color: colors.textSecondary,
+    fontWeight: 'bold',
+    fontSize: 15,
   },
   endSessionWrapper: {
     padding: 24,

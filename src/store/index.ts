@@ -24,6 +24,7 @@ export interface Session {
   mood: number;
   hunger: number;
   anxiety: number;
+  hasSubjectiveCheckIn?: boolean;
 }
 
 export interface Consumption {
@@ -52,16 +53,17 @@ export interface AppState {
   sessions: Session[];
   activeSessionId: string | null;
   isQuickEntryVisible: boolean;
+  quickEntryMode: 'default' | 'custom';
   isStartSessionVisible: boolean;
   consumptions: Consumption[];
   favorites: FavoriteItem[];
   
-  setQuickEntryVisible: (visible: boolean) => void;
+  setQuickEntryVisible: (visible: boolean, mode?: 'default' | 'custom') => void;
   setStartSessionVisible: (visible: boolean) => void;
   setProfile: (profile: Partial<UserProfile>) => void;
   completeOnboarding: () => void;
   
-  startSession: (mood: number, hunger: number, anxiety: number, initialConsumptions?: Omit<Consumption, 'id' | 'sessionId'>[]) => void;
+  startSession: (mood: number, hunger: number, anxiety: number, initialConsumptions?: Omit<Consumption, 'id' | 'sessionId'>[], hasSubjectiveCheckIn?: boolean) => void;
   endSession: () => void;
   updateSessionState: (mood: number, hunger: number, anxiety: number) => void;
   
@@ -93,6 +95,7 @@ export const useAppStore = create<AppState>()(
       sessions: [],
       activeSessionId: null,
       isQuickEntryVisible: false,
+      quickEntryMode: 'default',
       isStartSessionVisible: false,
       consumptions: [],
       favorites: [
@@ -106,8 +109,11 @@ export const useAppStore = create<AppState>()(
       setProfile: (newProfile) =>
         set((state) => ({ profile: { ...state.profile, ...newProfile } })),
         
-      setQuickEntryVisible: (visible) =>
-        set({ isQuickEntryVisible: visible }),
+      setQuickEntryVisible: (visible, mode) =>
+        set({
+          isQuickEntryVisible: visible,
+          quickEntryMode: visible ? (mode ?? 'default') : 'default',
+        }),
         
       setStartSessionVisible: (visible) =>
         set({ isStartSessionVisible: visible }),
@@ -115,7 +121,7 @@ export const useAppStore = create<AppState>()(
       completeOnboarding: () =>
         set((state) => ({ profile: { ...state.profile, isOnboarded: true } })),
         
-      startSession: (mood, hunger, anxiety, initialConsumptions) => 
+      startSession: (mood, hunger, anxiety, initialConsumptions, hasSubjectiveCheckIn = true) => 
         set((state) => {
           const sessionId = Crypto.randomUUID();
           const newSession: Session = {
@@ -124,7 +130,8 @@ export const useAppStore = create<AppState>()(
             endTime: null,
             mood,
             hunger,
-            anxiety
+            anxiety,
+            hasSubjectiveCheckIn,
           };
           
           let newConsumptions = [...state.consumptions];
@@ -161,19 +168,47 @@ export const useAppStore = create<AppState>()(
           if (!state.activeSessionId) return state;
           return {
             sessions: state.sessions.map(s =>
-              s.id === state.activeSessionId ? { ...s, mood, hunger, anxiety } : s
+              s.id === state.activeSessionId
+                ? { ...s, mood, hunger, anxiety, hasSubjectiveCheckIn: true }
+                : s
             )
           };
         }),
         
       addConsumption: (item) =>
         set((state) => {
-          if (!state.activeSessionId) return state;
+          const now = Date.now();
+          const itemTimestamp = item.timestamp ?? now;
+
+          if (!state.activeSessionId) {
+            const sessionId = Crypto.randomUUID();
+            const newSession: Session = {
+              id: sessionId,
+              startTime: Math.min(now, itemTimestamp),
+              endTime: null,
+              mood: 3,
+              hunger: 3,
+              anxiety: 3,
+              hasSubjectiveCheckIn: false,
+            };
+            const newConsumption: Consumption = {
+              ...item,
+              id: item.id || Crypto.randomUUID(),
+              sessionId,
+              timestamp: itemTimestamp,
+            };
+            return {
+              sessions: [...state.sessions, newSession],
+              activeSessionId: sessionId,
+              consumptions: [...state.consumptions, newConsumption],
+            };
+          }
+
           const newConsumption: Consumption = {
             ...item,
             id: item.id || Crypto.randomUUID(),
             sessionId: state.activeSessionId,
-            timestamp: item.timestamp ?? Date.now()
+            timestamp: itemTimestamp,
           };
           return {
             consumptions: [...state.consumptions, newConsumption],
@@ -272,6 +307,7 @@ export const useAppStore = create<AppState>()(
           ...typedPersisted,
           activeSessionId,
           isQuickEntryVisible: false,
+          quickEntryMode: 'default',
           isStartSessionVisible: false,
           profile: {
             ...currentState.profile,

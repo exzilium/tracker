@@ -1,5 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, TextInput } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { useAppStore, FavoriteItem, ConsumableType, IngestionMethod } from '../store';
 import { colors, typography } from '../theme';
 import { scheduleHydrationReminder } from '../utils/notifications';
@@ -34,13 +35,15 @@ export default function QuickEntry() {
   const addConsumption = useAppStore((state) => state.addConsumption);
   const addFavorite = useAppStore((state) => state.addFavorite);
   const consumptions = useAppStore((state) => state.consumptions);
+  const activeSessionId = useAppStore((state) => state.activeSessionId);
   const isQuickEntryVisible = useAppStore((state) => state.isQuickEntryVisible);
+  const quickEntryMode = useAppStore((state) => state.quickEntryMode);
   const setQuickEntryVisible = useAppStore((state) => state.setQuickEntryVisible);
+  const setStartSessionVisible = useAppStore((state) => state.setStartSessionVisible);
 
   const recentSessionLogs = useMemo(() => {
-    if (!isQuickEntryVisible) return [];
-    const cutoff = Date.now() - 12 * 60 * 60 * 1000;
-    const activeLogs = consumptions.filter(c => c.timestamp > cutoff);
+    if (!isQuickEntryVisible || !activeSessionId) return [];
+    const activeLogs = consumptions.filter((c) => c.sessionId === activeSessionId);
     const uniqueLogs = [];
     const seen = new Set<string>();
     const sorted = [...activeLogs].sort((a, b) => b.timestamp - a.timestamp);
@@ -52,10 +55,19 @@ export default function QuickEntry() {
       }
     }
     return uniqueLogs;
-  }, [consumptions, isQuickEntryVisible]);
+  }, [consumptions, isQuickEntryVisible, activeSessionId]);
 
   const navigation = useNavigation<any>();
   const [modalVisible, setModalVisible] = useState(false);
+
+  useEffect(() => {
+    if (isQuickEntryVisible && quickEntryMode === 'custom') {
+      setModalVisible(true);
+    } else if (!isQuickEntryVisible) {
+      setModalVisible(false);
+    }
+  }, [isQuickEntryVisible, quickEntryMode]);
+
   const [customType, setCustomType] = useState<ConsumableType>('alcohol');
   const [customMethod, setCustomMethod] = useState<IngestionMethod>('edible');
   const [isMixedMode, setIsMixedMode] = useState(false);
@@ -68,7 +80,15 @@ export default function QuickEntry() {
   const [customMinutesAgo, setCustomMinutesAgo] = useState('0');
   const [saveFav, setSaveFav] = useState(false);
 
+  const closeCustomModal = () => {
+    setModalVisible(false);
+    if (quickEntryMode === 'custom') {
+      setQuickEntryVisible(false);
+    }
+  };
+
   const handleQuickTap = (fav: FavoriteItem) => {
+    Promise.resolve(Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)).catch(() => {});
     addConsumption({
       type: fav.type,
       name: fav.name,
@@ -189,7 +209,12 @@ export default function QuickEntry() {
   return (
     <>
       {/* Main Quick Entry Modal */}
-      <Modal visible={isQuickEntryVisible} transparent animationType="slide">
+      <Modal
+        visible={isQuickEntryVisible && !modalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setQuickEntryVisible(false)}
+      >
         <View style={styles.modalBg}>
           <View style={styles.modalCard}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
@@ -247,12 +272,29 @@ export default function QuickEntry() {
             <TouchableOpacity style={styles.addCustomBtn} onPress={() => setModalVisible(true)}>
               <Text style={styles.addCustomBtnText}>+ Add Custom Entry</Text>
             </TouchableOpacity>
+
+            {!activeSessionId && (
+              <TouchableOpacity
+                style={styles.mindfulLinkBtn}
+                onPress={() => {
+                  setQuickEntryVisible(false);
+                  setStartSessionVisible(true);
+                }}
+              >
+                <Text style={styles.mindfulLinkText}>Want to check in on Mood &amp; Intent first?</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </Modal>
 
       {/* Custom Entry Modal */}
-      <Modal visible={modalVisible} transparent animationType="slide">
+      <Modal
+        visible={modalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={closeCustomModal}
+      >
         <View style={styles.modalBg}>
           <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}>
             <View style={styles.modalCard}>
@@ -512,7 +554,7 @@ export default function QuickEntry() {
               </TouchableOpacity>
 
               <View style={styles.modalActions}>
-                <TouchableOpacity style={styles.cancelBtn} onPress={() => setModalVisible(false)}>
+                <TouchableOpacity style={styles.cancelBtn} onPress={closeCustomModal}>
                   <Text style={styles.cancelBtnText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.saveBtn} onPress={handleCustomSave}>
@@ -733,5 +775,15 @@ const styles = StyleSheet.create({
   saveBtnText: {
     color: colors.background,
     fontWeight: 'bold',
-  }
+  },
+  mindfulLinkBtn: {
+    marginTop: 14,
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  mindfulLinkText: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    textDecorationLine: 'underline',
+  },
 });

@@ -4,6 +4,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppStore, FavoriteItem, IngestionMethod } from '../store';
 import { colors, typography } from '../theme';
 import EntryIcon from '../components/EntryIcon';
+import ColorPickerPopover from '../components/ColorPickerPopover';
+import {
+  formatConsumableSubtitle,
+  getConsumableColor,
+  withAlpha,
+} from '../utils/consumableMeta';
 import { AppAlert } from '../utils/AppAlert';
 
 const ALCOHOL_ICONS = [
@@ -47,6 +53,7 @@ export default function ManageFavoritesScreen({ navigation, route }: ManageFavor
   // Edit form state
   const [editName, setEditName] = useState('');
   const [editEmoji, setEditEmoji] = useState('');
+  const [editColor, setEditColor] = useState<string | undefined>(undefined);
   const [editAmount, setEditAmount] = useState('');
   const [editAbv, setEditAbv] = useState('');
   const [editMethod, setEditMethod] = useState<IngestionMethod>('edible');
@@ -80,6 +87,7 @@ export default function ManageFavoritesScreen({ navigation, route }: ManageFavor
     setEditingFav(fav);
     setEditName(fav.name);
     setEditEmoji(fav.emoji || (fav.type === 'alcohol' ? '🍺' : '🍃'));
+    setEditColor(fav.color);
     setEditDuration((fav.durationMins || 0).toString());
     setEditCalories(fav.calories ? fav.calories.toString() : '');
     
@@ -102,6 +110,7 @@ export default function ManageFavoritesScreen({ navigation, route }: ManageFavor
     const updates: Partial<FavoriteItem> = {
       name: editName.trim() || editingFav.name,
       emoji: editEmoji,
+      color: editColor,
       durationMins: editingFav.type === 'alcohol' ? Math.max(0, parseFloat(editDuration) || 0) : 0,
       calories: !isNaN(parsedCals) && parsedCals >= 0 ? parsedCals : undefined,
     };
@@ -117,6 +126,11 @@ export default function ManageFavoritesScreen({ navigation, route }: ManageFavor
     updateFavorite(editingFav.id, updates);
     setEditModalVisible(false);
   };
+
+  const editPreviewColor = getConsumableColor({
+    type: editingFav?.type ?? 'alcohol',
+    color: editColor,
+  });
 
   return (
     <SafeAreaView style={styles.container}>
@@ -134,71 +148,81 @@ export default function ManageFavoritesScreen({ navigation, route }: ManageFavor
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.subtitle}>Reorder or delete your custom Quick Entry options.</Text>
+        <Text style={styles.subtitle}>Reorder, customize colors, or delete your Quick Entry options.</Text>
         
         {favorites.length === 0 ? (
           <Text style={styles.emptyText}>You have no favorites saved.</Text>
         ) : (
-          favorites.map((fav, index) => (
-            <View key={fav.id} style={styles.favItem}>
-              <View style={styles.favDetailsRow}>
-                <Text style={styles.favNumber}>{index + 1}.</Text>
-                
-                <View style={styles.favIconWrapper}>
-                  <EntryIcon iconString={fav.emoji} size={32} color={colors.text} />
+          favorites.map((fav, index) => {
+            const itemColor = getConsumableColor(fav);
+            const subtitle =
+              formatConsumableSubtitle(fav) ||
+              (fav.type === 'alcohol'
+                ? `${fav.volumeOz}oz • ${fav.abvPercent}% ABV`
+                : `${fav.mg}mg THC (${fav.method || 'edible'})`);
+
+            return (
+              <View key={fav.id} style={styles.favItem}>
+                <View style={styles.favDetailsRow}>
+                  <Text style={styles.favNumber}>{index + 1}.</Text>
+                  
+                  <View
+                    style={[
+                      styles.favIconWrapper,
+                      { backgroundColor: withAlpha(itemColor, 0.12) },
+                    ]}
+                  >
+                    <EntryIcon iconString={fav.emoji} size={24} color={itemColor} />
+                  </View>
+                  
+                  <View style={styles.favDetails}>
+                    <Text style={styles.favName}>{fav.name}</Text>
+                    <Text style={styles.favDesc}>{subtitle}</Text>
+                  </View>
                 </View>
-                
-                <View style={styles.favDetails}>
-                  <Text style={styles.favName}>{fav.name}</Text>
-                  {fav.type === 'alcohol' ? (
-                    <Text style={styles.favDesc}>{fav.volumeOz}oz • {fav.abvPercent}% ABV</Text>
-                  ) : (
-                    <Text style={styles.favDesc}>{fav.mg}mg THC ({fav.method || 'edible'})</Text>
-                  )}
+
+                <View style={styles.actionsRow}>
+                  <TouchableOpacity 
+                    style={[styles.iconBtn, index === 0 && styles.iconBtnDisabled]} 
+                    onPress={() => handleMoveToTop(index)}
+                    disabled={index === 0}
+                  >
+                    <Text style={styles.iconBtnText}>⇈</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity 
+                    style={[styles.iconBtn, index === 0 && styles.iconBtnDisabled]} 
+                    onPress={() => handleMoveUp(index)}
+                    disabled={index === 0}
+                  >
+                    <Text style={styles.iconBtnText}>↑</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity 
+                    style={[styles.iconBtn, index === favorites.length - 1 && styles.iconBtnDisabled]} 
+                    onPress={() => handleMoveDown(index)}
+                    disabled={index === favorites.length - 1}
+                  >
+                    <Text style={styles.iconBtnText}>↓</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity 
+                    style={styles.iconBtn} 
+                    onPress={() => openEditModal(fav)}
+                  >
+                    <Text style={styles.iconBtnText}>✎</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity 
+                    style={[styles.iconBtn, styles.deleteBtn]} 
+                    onPress={() => handleRemove(fav.id, fav.name)}
+                  >
+                    <Text style={styles.deleteBtnText}>✕</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
-
-              <View style={styles.actionsRow}>
-                <TouchableOpacity 
-                  style={[styles.iconBtn, index === 0 && styles.iconBtnDisabled]} 
-                  onPress={() => handleMoveToTop(index)}
-                  disabled={index === 0}
-                >
-                  <Text style={styles.iconBtnText}>⇈</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity 
-                  style={[styles.iconBtn, index === 0 && styles.iconBtnDisabled]} 
-                  onPress={() => handleMoveUp(index)}
-                  disabled={index === 0}
-                >
-                  <Text style={styles.iconBtnText}>↑</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity 
-                  style={[styles.iconBtn, index === favorites.length - 1 && styles.iconBtnDisabled]} 
-                  onPress={() => handleMoveDown(index)}
-                  disabled={index === favorites.length - 1}
-                >
-                  <Text style={styles.iconBtnText}>↓</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity 
-                  style={styles.iconBtn} 
-                  onPress={() => openEditModal(fav)}
-                >
-                  <Text style={styles.iconBtnText}>✎</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity 
-                  style={[styles.iconBtn, styles.deleteBtn]} 
-                  onPress={() => handleRemove(fav.id, fav.name)}
-                >
-                  <Text style={styles.deleteBtnText}>✕</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ))
+            );
+          })
         )}
       </ScrollView>
 
@@ -214,25 +238,45 @@ export default function ManageFavoritesScreen({ navigation, route }: ManageFavor
                   <Text style={styles.inputLabel}>Name</Text>
                   <TextInput
                     style={styles.input}
-                    placeholder="Name"
+                    placeholder="e.g. Gummy, Wine, or Wana Sativa"
                     placeholderTextColor={colors.textSecondary}
                     value={editName}
                     onChangeText={setEditName}
                   />
+                  <Text style={styles.helperText}>
+                    Product type or brand — dose is shown automatically
+                  </Text>
                 </View>
               </View>
 
-              <Text style={styles.inputLabel}>Select Icon</Text>
+              <View style={styles.iconHeaderRow}>
+                <Text style={[styles.inputLabel, { marginBottom: 0 }]}>Select Icon</Text>
+                <ColorPickerPopover
+                  selectedColor={editColor}
+                  type={editingFav?.type ?? 'alcohol'}
+                  onSelectColor={setEditColor}
+                />
+              </View>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginBottom: 16}}>
-                {(editingFav?.type === 'alcohol' ? ALCOHOL_ICONS : THC_ICONS).map(icon => (
-                  <TouchableOpacity
-                    key={icon}
-                    style={[styles.iconPickerBtn, editEmoji === icon && styles.iconPickerBtnActive]}
-                    onPress={() => setEditEmoji(icon)}
-                  >
-                    <EntryIcon iconString={icon} size={24} color={editEmoji === icon ? colors.background : colors.text} />
-                  </TouchableOpacity>
-                ))}
+                {(editingFav?.type === 'alcohol' ? ALCOHOL_ICONS : THC_ICONS).map(icon => {
+                  const isSelected = editEmoji === icon;
+                  return (
+                    <TouchableOpacity
+                      key={icon}
+                      style={[
+                        styles.iconPickerBtn,
+                        isSelected && { backgroundColor: editPreviewColor },
+                      ]}
+                      onPress={() => setEditEmoji(icon)}
+                    >
+                      <EntryIcon
+                        iconString={icon}
+                        size={24}
+                        color={isSelected ? colors.background : editPreviewColor}
+                      />
+                    </TouchableOpacity>
+                  );
+                })}
               </ScrollView>
 
               {editingFav?.type === 'alcohol' ? (
@@ -444,7 +488,9 @@ const styles = StyleSheet.create({
     marginRight: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    width: 32,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
   },
   // Modal Styles
   modalBg: {
@@ -495,6 +541,18 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: 4,
     fontWeight: 'bold',
+  },
+  helperText: {
+    ...typography.caption,
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginTop: 4,
+  },
+  iconHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
   },
   iconPickerBtn: {
     width: 48,

@@ -1,12 +1,23 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, TextInput } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { useAppStore, FavoriteItem, ConsumableType, IngestionMethod } from '../store';
+import { useAppStore, FavoriteItem, Consumption, ConsumableType, IngestionMethod } from '../store';
 import { colors, typography } from '../theme';
 import { scheduleHydrationReminder } from '../utils/notifications';
 import { AppAlert } from '../utils/AppAlert';
 import { useNavigation } from '@react-navigation/native';
 import EntryIcon from './EntryIcon';
+import ColorPickerPopover from './ColorPickerPopover';
+import ContinueSessionModal from './ContinueSessionModal';
+import {
+  formatConsumableSubtitle,
+  getConsumableColor,
+  withAlpha,
+} from '../utils/consumableMeta';
+import {
+  findOverlappingClosedSessions,
+  OverlappingSessionMatch,
+} from '../utils/sessionMerge';
 
 const ALCOHOL_ICONS = [
   'Ionicons:beer-outline',
@@ -30,35 +41,54 @@ const THC_ICONS = [
   'MaterialCommunityIcons:smoking'
 ];
 
+interface PendingLogState {
+  entry: Omit<Consumption, 'id' | 'sessionId'>;
+  saveFavorite?: Omit<FavoriteItem, 'id'>;
+  match: OverlappingSessionMatch;
+}
+
 export default function QuickEntry() {
   const favorites = useAppStore((state) => state.favorites);
+  const sessions = useAppStore((state) => state.sessions);
+  const profile = useAppStore((state) => state.profile);
   const addConsumption = useAppStore((state) => state.addConsumption);
   const addFavorite = useAppStore((state) => state.addFavorite);
   const consumptions = useAppStore((state) => state.consumptions);
   const activeSessionId = useAppStore((state) => state.activeSessionId);
   const isQuickEntryVisible = useAppStore((state) => state.isQuickEntryVisible);
   const quickEntryMode = useAppStore((state) => state.quickEntryMode);
+  const quickEntryTargetSessionId = useAppStore((state) => state.quickEntryTargetSessionId);
   const setQuickEntryVisible = useAppStore((state) => state.setQuickEntryVisible);
   const setStartSessionVisible = useAppStore((state) => state.setStartSessionVisible);
 
+  const targetSession = useMemo(
+    () =>
+      quickEntryTargetSessionId
+        ? sessions.find((s) => s.id === quickEntryTargetSessionId) ?? null
+        : null,
+    [quickEntryTargetSessionId, sessions]
+  );
+
   const recentSessionLogs = useMemo(() => {
-    if (!isQuickEntryVisible || !activeSessionId) return [];
-    const activeLogs = consumptions.filter((c) => c.sessionId === activeSessionId);
-    const uniqueLogs = [];
+    const scopeSessionId = quickEntryTargetSessionId || activeSessionId;
+    if (!isQuickEntryVisible || !scopeSessionId) return [];
+    const activeLogs = consumptions.filter((c) => c.sessionId === scopeSessionId);
+    const uniqueLogs: Consumption[] = [];
     const seen = new Set<string>();
     const sorted = [...activeLogs].sort((a, b) => b.timestamp - a.timestamp);
     for (const log of sorted) {
-      const key = `${log.type}-${log.name}-${log.volumeOz || log.mg}`;
+      const key = `${log.type}-${log.name}-${log.volumeOz || log.mg}-${log.method || ''}-${log.color || ''}`;
       if (!seen.has(key)) {
         seen.add(key);
         uniqueLogs.push(log);
       }
     }
     return uniqueLogs;
-  }, [consumptions, isQuickEntryVisible, activeSessionId]);
+  }, [consumptions, isQuickEntryVisible, activeSessionId, quickEntryTargetSessionId]);
 
   const navigation = useNavigation<any>();
   const [modalVisible, setModalVisible] = useState(false);
+  const [pendingContinue, setPendingContinue] = useState<PendingLogState | null>(null);
 
   useEffect(() => {
     if (isQuickEntryVisible && quickEntryMode === 'custom') {
@@ -73,6 +103,7 @@ export default function QuickEntry() {
   const [isMixedMode, setIsMixedMode] = useState(false);
   const [customName, setCustomName] = useState('');
   const [customEmoji, setCustomEmoji] = useState(ALCOHOL_ICONS[0]);
+  const [customColor, setCustomColor] = useState<string | undefined>(undefined);
   const [customAmount, setCustomAmount] = useState('');
   const [customAbv, setCustomAbv] = useState('');
   const [customDuration, setCustomDuration] = useState('45');
@@ -87,21 +118,65 @@ export default function QuickEntry() {
     }
   };
 
-  const handleQuickTap = (fav: FavoriteItem) => {
+  const commitOrPromptEntry = (
+    entry: Omit<Consumption, 'id' | 'sessionId'>,
+    saveFavorite?: Omit<FavoriteItem, 'id'>
+  ) => {
+    if (targetSession) {
+      addConsumption(entry, { targetSessionId: targetSession.id });
+      if (saveFavorite) addFavorite(saveFavorite);
+      setModalVisible(false);
+      setQuickEntryVisible(false);
+      scheduleHydrationReminder();
+      return;
+    }
+
+    if (!activeSessionId) {
+      const matches = findOverlappingClosedSessions(
+        sessions,
+        consumptions,
+        profile,
+        entry.timestamp,
+        entry
+      );
+      if (matches.length > 0) {
+        setModalVisible(false);
+        setQuickEntryVisible(false);
+        setPendingContinue({
+          entry,
+          saveFavorite,
+          match: matches[0],
+        });
+        return;
+      }
+    }
+
+    addConsumption(entry);
+    if (saveFavorite) addFavorite(saveFavorite);
+    setModalVisible(false);
+    setQuickEntryVisible(false);
+    scheduleHydrationReminder();
+  };
+
+  const handleQuickTap = (fav: Omit<FavoriteItem, 'id'> & { id?: string }) => {
     Promise.resolve(Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)).catch(() => {});
-    addConsumption({
+    const defaultTimestamp =
+      targetSession && targetSession.endTime !== null
+        ? targetSession.endTime
+        : Date.now();
+    commitOrPromptEntry({
       type: fav.type,
       name: fav.name,
       emoji: fav.emoji,
+      color: fav.color,
       volumeOz: fav.volumeOz,
       abvPercent: fav.abvPercent,
       method: fav.method,
       mg: fav.mg,
       durationMins: fav.durationMins,
       calories: fav.calories,
-      timestamp: Date.now(),
+      timestamp: defaultTimestamp,
     });
-    scheduleHydrationReminder();
   };
 
   const handleLongPress = () => {
@@ -115,6 +190,7 @@ export default function QuickEntry() {
     setIsMixedMode(false);
     setCustomName('');
     setCustomEmoji(type === 'thc' ? THC_ICONS[0] : ALCOHOL_ICONS[0]);
+    setCustomColor(undefined);
     setCustomAmount('');
     setCustomAbv('');
     setCustomDuration(type === 'thc' ? '0' : '45');
@@ -137,12 +213,13 @@ export default function QuickEntry() {
     setIsMixedMode(mixedMode);
     setCustomName(name);
     setCustomEmoji(emoji);
+    setCustomColor(undefined);
     setCustomDuration(duration);
     setCustomAmount(amount);
 
     if (type === 'alcohol') {
       setCustomAbv(abvOrCals);
-      setCustomCalories(''); // user can estimate
+      setCustomCalories('');
     } else {
       setCustomCalories(abvOrCals);
     }
@@ -158,7 +235,7 @@ export default function QuickEntry() {
     const minsAgo = Math.max(0, parseFloat(customMinutesAgo) || 0);
 
     if (!customName.trim() || !customEmoji) {
-      AppAlert('Missing Fields', 'Please provide a name and emoji.');
+      AppAlert('Missing Fields', 'Please provide a name and icon.');
       return;
     }
 
@@ -181,30 +258,37 @@ export default function QuickEntry() {
       }
     }
 
-    const entry = {
+    const baseEntry: Omit<FavoriteItem, 'id'> = {
       type: customType,
       name: customName.trim(),
       emoji: customEmoji,
+      color: customColor,
       durationMins: isAlcohol ? Math.max(0, duration) : (isNaN(duration) || duration < 0 ? 0 : duration),
       calories: isNaN(cals) || cals < 0 ? undefined : cals,
       ...(isAlcohol ? { volumeOz: amount, abvPercent: abv } : { method: customMethod, mg: amount }),
     };
 
-    const timestamp = Date.now() - (minsAgo * 60000);
+    const referenceNow =
+      targetSession && targetSession.endTime !== null && minsAgo === 0
+        ? targetSession.endTime
+        : Date.now();
+    const timestamp = referenceNow - (minsAgo * 60000);
+    const favoriteToSave = saveFav ? baseEntry : undefined;
 
-    addConsumption({ ...entry, timestamp });
-
-    if (saveFav) {
-      addFavorite(entry);
-    }
-
-    setModalVisible(false);
-    setQuickEntryVisible(false);
-    switchType('alcohol'); // reset
+    switchType('alcohol');
     setSaveFav(false);
-
-    scheduleHydrationReminder();
+    commitOrPromptEntry({ ...baseEntry, timestamp }, favoriteToSave);
   };
+
+  const activePreviewColor = getConsumableColor({ type: customType, color: customColor });
+  const targetSessionLabel = targetSession
+    ? new Date(targetSession.startTime).toLocaleString([], {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+      })
+    : null;
 
   return (
     <>
@@ -217,63 +301,92 @@ export default function QuickEntry() {
       >
         <View style={styles.modalBg}>
           <View style={styles.modalCard}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <Text style={styles.title}>Quick Entry</Text>
               <TouchableOpacity onPress={() => setQuickEntryVisible(false)}>
                 <Text style={{ color: colors.textSecondary, fontSize: 24 }}>✕</Text>
               </TouchableOpacity>
             </View>
 
+            {targetSessionLabel && (
+              <View style={styles.targetBanner}>
+                <Text style={styles.targetBannerText}>
+                  Adding to session · {targetSessionLabel}
+                </Text>
+              </View>
+            )}
+
             {recentSessionLogs.length > 0 && (
               <>
-                <Text style={[styles.sectionHeader, { marginTop: 0 }]}>Recent in this Session</Text>
+                <Text style={[styles.sectionHeader, { marginTop: 4 }]}>Recent in this Session</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.scroll}>
-                  {recentSessionLogs.map((log) => (
-                    <TouchableOpacity
-                      key={`recent-${log.id}`}
-                      style={[styles.card, styles.recentCard]}
-                      onPress={() => {
-                        handleQuickTap(log);
-                        setQuickEntryVisible(false);
-                      }}
-                    >
-                      <View style={{ marginBottom: 8 }}>
-                        <EntryIcon iconString={log.emoji} size={32} color={colors.primary} />
-                      </View>
-                      <Text style={styles.recentCardTitle} numberOfLines={2} adjustsFontSizeToFit>{log.name}</Text>
-                    </TouchableOpacity>
-                  ))}
+                  {recentSessionLogs.map((log) => {
+                    const itemColor = getConsumableColor(log);
+                    const subtitle = formatConsumableSubtitle(log);
+                    return (
+                      <TouchableOpacity
+                        key={`recent-${log.id}`}
+                        style={[
+                          styles.card,
+                          styles.recentCard,
+                          { borderColor: withAlpha(itemColor, 0.45) },
+                        ]}
+                        onPress={() => handleQuickTap(log)}
+                      >
+                        <View style={{ marginBottom: 6 }}>
+                          <EntryIcon iconString={log.emoji} size={30} color={itemColor} />
+                        </View>
+                        <Text style={styles.recentCardTitle} numberOfLines={2} adjustsFontSizeToFit>
+                          {log.name}
+                        </Text>
+                        {!!subtitle && (
+                          <Text style={styles.cardSubtitle} numberOfLines={1}>
+                            {subtitle}
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
                 </ScrollView>
               </>
             )}
 
-            <Text style={[styles.sectionHeader, { marginTop: 24 }]}>Favorites</Text>
+            <Text style={[styles.sectionHeader, { marginTop: 20 }]}>Favorites</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.scroll}>
-
-              {favorites.map((fav) => (
-                <TouchableOpacity
-                  key={fav.id}
-                  style={styles.card}
-                  onPress={() => {
-                    handleQuickTap(fav);
-                    setQuickEntryVisible(false);
-                  }}
-                  onLongPress={handleLongPress}
-                >
-                  <View style={{ marginBottom: 8 }}>
-                    <EntryIcon iconString={fav.emoji} size={32} color={colors.text} />
-                  </View>
-                  <Text style={styles.cardTitle}>{fav.name}</Text>
-                </TouchableOpacity>
-              ))}
+              {favorites.map((fav) => {
+                const itemColor = getConsumableColor(fav);
+                const subtitle = formatConsumableSubtitle(fav);
+                return (
+                  <TouchableOpacity
+                    key={fav.id}
+                    style={styles.card}
+                    onPress={() => handleQuickTap(fav)}
+                    onLongPress={handleLongPress}
+                  >
+                    <View style={{ marginBottom: 6 }}>
+                      <EntryIcon iconString={fav.emoji} size={30} color={itemColor} />
+                    </View>
+                    <Text style={styles.cardTitle} numberOfLines={2}>
+                      {fav.name}
+                    </Text>
+                    {!!subtitle && (
+                      <Text style={styles.cardSubtitle} numberOfLines={1}>
+                        {subtitle}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
             </ScrollView>
-            <Text style={{ textAlign: 'center', color: colors.textSecondary, fontSize: 12, marginTop: 8, marginBottom: 24 }}>Long press any favorite to manage</Text>
+            <Text style={{ textAlign: 'center', color: colors.textSecondary, fontSize: 12, marginTop: 8, marginBottom: 20 }}>
+              Long press any favorite to manage
+            </Text>
 
             <TouchableOpacity style={styles.addCustomBtn} onPress={() => setModalVisible(true)}>
               <Text style={styles.addCustomBtnText}>+ Add Custom Entry</Text>
             </TouchableOpacity>
 
-            {!activeSessionId && (
+            {!activeSessionId && !targetSession && (
               <TouchableOpacity
                 style={styles.mindfulLinkBtn}
                 onPress={() => {
@@ -300,6 +413,14 @@ export default function QuickEntry() {
             <View style={styles.modalCard}>
               <Text style={styles.modalTitle}>Custom Entry</Text>
 
+              {targetSessionLabel && (
+                <View style={styles.targetBanner}>
+                  <Text style={styles.targetBannerText}>
+                    Adding to session · {targetSessionLabel}
+                  </Text>
+                </View>
+              )}
+
               <View style={styles.typeRow}>
                 <TouchableOpacity
                   style={[styles.typeBtn, customType === 'alcohol' && styles.typeBtnActive]}
@@ -320,38 +441,38 @@ export default function QuickEntry() {
               {customType === 'alcohol' ? (
                 <View style={styles.presetsRow}>
                   <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('alcohol', 'Beer', 'Ionicons:beer-outline', '12', '5', '45', false)}>
-                    <View style={styles.presetEmoji}><EntryIcon iconString="Ionicons:beer-outline" size={24} color={colors.text} /></View>
+                    <View style={styles.presetEmoji}><EntryIcon iconString="Ionicons:beer-outline" size={24} color={colors.primary} /></View>
                     <Text style={styles.presetText}>Beer</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('alcohol', 'Wine', 'Ionicons:wine', '5', '12', '45', false)}>
-                    <View style={styles.presetEmoji}><EntryIcon iconString="Ionicons:wine" size={24} color={colors.text} /></View>
+                    <View style={styles.presetEmoji}><EntryIcon iconString="Ionicons:wine" size={24} color={colors.primary} /></View>
                     <Text style={styles.presetText}>Wine</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('alcohol', 'Mixed', 'FontAwesome5:cocktail', '1', '40', '45', true)}>
-                    <View style={styles.presetEmoji}><EntryIcon iconString="FontAwesome5:cocktail" size={24} color={colors.text} /></View>
+                    <View style={styles.presetEmoji}><EntryIcon iconString="FontAwesome5:cocktail" size={24} color={colors.primary} /></View>
                     <Text style={styles.presetText}>Mixed</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('alcohol', 'Shot', 'FontAwesome5:glass-whiskey', '1.5', '40', '0', false)}>
-                    <View style={styles.presetEmoji}><EntryIcon iconString="FontAwesome5:glass-whiskey" size={24} color={colors.text} /></View>
+                    <View style={styles.presetEmoji}><EntryIcon iconString="FontAwesome5:glass-whiskey" size={24} color={colors.primary} /></View>
                     <Text style={styles.presetText}>Shot</Text>
                   </TouchableOpacity>
                 </View>
               ) : (
                 <View style={styles.presetsRow}>
-                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('thc', 'Gummy (10mg)', 'FontAwesome5:cookie-bite', '10', '20', '0', false, 'edible')}>
-                    <View style={styles.presetEmoji}><EntryIcon iconString="FontAwesome5:cookie-bite" size={24} color={colors.text} /></View>
+                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('thc', 'Gummy', 'FontAwesome5:cookie-bite', '10', '20', '0', false, 'edible')}>
+                    <View style={styles.presetEmoji}><EntryIcon iconString="FontAwesome5:cookie-bite" size={24} color={colors.secondary} /></View>
                     <Text style={styles.presetText}>10mg</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('thc', 'Gummy (5mg)', 'FontAwesome5:cookie-bite', '5', '10', '0', false, 'edible')}>
-                    <View style={styles.presetEmoji}><EntryIcon iconString="FontAwesome5:cookie-bite" size={24} color={colors.text} /></View>
+                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('thc', 'Gummy', 'FontAwesome5:cookie-bite', '5', '10', '0', false, 'edible')}>
+                    <View style={styles.presetEmoji}><EntryIcon iconString="FontAwesome5:cookie-bite" size={24} color={colors.secondary} /></View>
                     <Text style={styles.presetText}>5mg</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('thc', 'Gummy (2.5mg)', 'FontAwesome5:cookie-bite', '2.5', '5', '0', false, 'edible')}>
-                    <View style={styles.presetEmoji}><EntryIcon iconString="FontAwesome5:cookie-bite" size={24} color={colors.text} /></View>
+                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('thc', 'Gummy', 'FontAwesome5:cookie-bite', '2.5', '5', '0', false, 'edible')}>
+                    <View style={styles.presetEmoji}><EntryIcon iconString="FontAwesome5:cookie-bite" size={24} color={colors.secondary} /></View>
                     <Text style={styles.presetText}>2.5mg</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('thc', 'Puff (2mg)', 'FontAwesome5:wind', '2', '0', '0', false, 'inhaled')}>
-                    <View style={styles.presetEmoji}><EntryIcon iconString="FontAwesome5:wind" size={24} color={colors.text} /></View>
+                  <TouchableOpacity style={styles.presetBtn} onPress={() => applyPreset('thc', 'Puff', 'FontAwesome5:wind', '2', '0', '0', false, 'inhaled')}>
+                    <View style={styles.presetEmoji}><EntryIcon iconString="FontAwesome5:wind" size={24} color={colors.secondary} /></View>
                     <Text style={styles.presetText}>Puff</Text>
                   </TouchableOpacity>
                 </View>
@@ -382,25 +503,45 @@ export default function QuickEntry() {
                   <Text style={styles.inputLabel}>Name</Text>
                   <TextInput
                     style={styles.input}
-                    placeholder="e.g. IPA"
+                    placeholder="e.g. Gummy, Wine, or Wana Sativa"
                     placeholderTextColor={colors.textSecondary}
                     value={customName}
                     onChangeText={setCustomName}
                   />
+                  <Text style={styles.helperText}>
+                    Product type or brand — dose is shown automatically
+                  </Text>
                 </View>
               </View>
 
-              <Text style={styles.inputLabel}>Select Icon</Text>
+              <View style={styles.iconHeaderRow}>
+                <Text style={[styles.inputLabel, { marginBottom: 0 }]}>Select Icon</Text>
+                <ColorPickerPopover
+                  selectedColor={customColor}
+                  type={customType}
+                  onSelectColor={setCustomColor}
+                />
+              </View>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
-                {(customType === 'thc' ? THC_ICONS : ALCOHOL_ICONS).map(icon => (
-                  <TouchableOpacity
-                    key={icon}
-                    style={[styles.iconPickerBtn, customEmoji === icon && styles.iconPickerBtnActive]}
-                    onPress={() => setCustomEmoji(icon)}
-                  >
-                    <EntryIcon iconString={icon} size={24} color={customEmoji === icon ? colors.background : colors.text} />
-                  </TouchableOpacity>
-                ))}
+                {(customType === 'thc' ? THC_ICONS : ALCOHOL_ICONS).map(icon => {
+                  const isSelected = customEmoji === icon;
+                  return (
+                    <TouchableOpacity
+                      key={icon}
+                      style={[
+                        styles.iconPickerBtn,
+                        isSelected && { backgroundColor: activePreviewColor },
+                      ]}
+                      onPress={() => setCustomEmoji(icon)}
+                    >
+                      <EntryIcon
+                        iconString={icon}
+                        size={24}
+                        color={isSelected ? colors.background : activePreviewColor}
+                      />
+                    </TouchableOpacity>
+                  );
+                })}
               </ScrollView>
 
               {customType === 'alcohol' ? (
@@ -565,6 +706,34 @@ export default function QuickEntry() {
           </ScrollView>
         </View>
       </Modal>
+
+      <ContinueSessionModal
+        visible={!!pendingContinue}
+        match={pendingContinue?.match ?? null}
+        itemName={pendingContinue?.entry.name}
+        onContinue={() => {
+          if (!pendingContinue) return;
+          addConsumption(pendingContinue.entry, {
+            targetSessionId: pendingContinue.match.session.id,
+            reopenTarget: true,
+          });
+          if (pendingContinue.saveFavorite) {
+            addFavorite(pendingContinue.saveFavorite);
+          }
+          scheduleHydrationReminder();
+          setPendingContinue(null);
+        }}
+        onStartNew={() => {
+          if (!pendingContinue) return;
+          addConsumption(pendingContinue.entry);
+          if (pendingContinue.saveFavorite) {
+            addFavorite(pendingContinue.saveFavorite);
+          }
+          scheduleHydrationReminder();
+          setPendingContinue(null);
+        }}
+        onCancel={() => setPendingContinue(null)}
+      />
     </>
   );
 }
@@ -579,9 +748,25 @@ const styles = StyleSheet.create({
   },
   scroll: {
   },
+  targetBanner: {
+    backgroundColor: 'rgba(187, 134, 252, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(187, 134, 252, 0.3)',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+  },
+  targetBannerText: {
+    ...typography.caption,
+    color: colors.primary,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
   card: {
     backgroundColor: colors.surface,
-    padding: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
     borderRadius: 12,
     marginRight: 12,
     width: 120,
@@ -596,9 +781,16 @@ const styles = StyleSheet.create({
   },
   recentCardTitle: {
     ...typography.caption,
-    color: colors.primary,
+    color: colors.text,
     textAlign: 'center',
     fontWeight: 'bold',
+  },
+  cardSubtitle: {
+    ...typography.caption,
+    fontSize: 10,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginTop: 3,
   },
   addCustomBtn: {
     backgroundColor: 'rgba(187, 134, 252, 0.1)',
@@ -705,6 +897,18 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: 4,
     fontWeight: 'bold',
+  },
+  helperText: {
+    ...typography.caption,
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginTop: 4,
+  },
+  iconHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
   },
   sectionHeader: {
     ...typography.caption,

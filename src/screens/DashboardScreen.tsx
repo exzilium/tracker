@@ -13,9 +13,18 @@ import BurndownChart from '../components/BurndownChart';
 import AdBanner from '../components/BannerAd';
 import EditConsumptionModal from '../components/EditConsumptionModal';
 import EndSessionConfirmModal from '../components/EndSessionConfirmModal';
+import ContinueSessionModal from '../components/ContinueSessionModal';
 import { registerForPushNotificationsAsync, scheduleHydrationReminder } from '../utils/notifications';
 import { getCurrentLevels, getPeaks } from '../utils/currentLevels';
-import { formatFavoriteSubtitle } from '../utils/pacingStats';
+import {
+  formatConsumableSubtitle,
+  getConsumableColor,
+  withAlpha,
+} from '../utils/consumableMeta';
+import {
+  findOverlappingClosedSessions,
+  OverlappingSessionMatch,
+} from '../utils/sessionMerge';
 import { AppAlert } from '../utils/AppAlert';
 import FloatingMascot from '../components/FloatingMascot';
 
@@ -44,6 +53,10 @@ export default function DashboardScreen({ navigation }: { navigation: { navigate
 
   const [editingLog, setEditingLog] = useState<Consumption | null>(null);
   const [endSessionConfirmVisible, setEndSessionConfirmVisible] = useState(false);
+  const [pendingQuickLaunch, setPendingQuickLaunch] = useState<{
+    fav: FavoriteItem;
+    match: OverlappingSessionMatch;
+  } | null>(null);
   const [lastRefreshed, setLastRefreshed] = useState(Date.now());
   const [autoClosePrompted, setAutoClosePrompted] = useState<string | null>(null);
 
@@ -152,21 +165,46 @@ export default function DashboardScreen({ navigation }: { navigation: { navigate
     );
   };
 
+  const commitFavoriteConsumption = (
+    fav: FavoriteItem,
+    targetSessionId?: string
+  ) => {
+    addConsumption(
+      {
+        type: fav.type,
+        name: fav.name,
+        emoji: fav.emoji,
+        color: fav.color,
+        volumeOz: fav.volumeOz,
+        abvPercent: fav.abvPercent,
+        method: fav.method,
+        mg: fav.mg,
+        durationMins: fav.durationMins,
+        calories: fav.calories,
+        timestamp: Date.now(),
+      },
+      targetSessionId ? { targetSessionId, reopenTarget: true } : undefined
+    );
+    scheduleHydrationReminder();
+  };
+
   const handleQuickLaunchFavorite = (fav: FavoriteItem) => {
     Promise.resolve(Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)).catch(() => {});
-    addConsumption({
-      type: fav.type,
-      name: fav.name,
-      emoji: fav.emoji,
-      volumeOz: fav.volumeOz,
-      abvPercent: fav.abvPercent,
-      method: fav.method,
-      mg: fav.mg,
-      durationMins: fav.durationMins,
-      calories: fav.calories,
-      timestamp: Date.now(),
-    });
-    scheduleHydrationReminder();
+    const now = Date.now();
+    const matches = findOverlappingClosedSessions(
+      sessions,
+      consumptions,
+      profile,
+      now,
+      fav
+    );
+
+    if (matches.length > 0) {
+      setPendingQuickLaunch({ fav, match: matches[0] });
+      return;
+    }
+
+    commitFavoriteConsumption(fav);
   };
 
   const confirmEndSession = () => {
@@ -198,7 +236,8 @@ export default function DashboardScreen({ navigation }: { navigation: { navigate
                 <>
                   <View style={styles.favoritesGrid}>
                     {favorites.map((fav) => {
-                      const subtitle = formatFavoriteSubtitle(fav);
+                      const subtitle = formatConsumableSubtitle(fav);
+                      const itemColor = getConsumableColor(fav);
                       return (
                         <TouchableOpacity
                           key={fav.id}
@@ -211,7 +250,7 @@ export default function DashboardScreen({ navigation }: { navigation: { navigate
                             <EntryIcon
                               iconString={fav.emoji || (fav.type === 'alcohol' ? '🍺' : '🍃')}
                               size={28}
-                              color={fav.type === 'thc' ? colors.secondary : colors.primary}
+                              color={itemColor}
                             />
                           </View>
                           <Text style={styles.favName} numberOfLines={2}>
@@ -289,15 +328,28 @@ export default function DashboardScreen({ navigation }: { navigation: { navigate
                   {currentSessionLogs.map(item => {
                     const timeStr = new Date(item.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
                     const isFinished = Date.now() >= item.timestamp + ((item.durationMins || 0) * 60000);
+                    const itemColor = getConsumableColor(item);
+                    const doseSubtitle = formatConsumableSubtitle(item);
 
                     return (
                       <View key={item.id} style={styles.logRow}>
-                        <View style={{ marginRight: 12 }}>
-                          <EntryIcon iconString={item.emoji || (item.type === 'alcohol' ? '🍺' : '🍃')} size={24} color={colors.textSecondary} />
+                        <View
+                          style={[
+                            styles.logIconCircle,
+                            { backgroundColor: withAlpha(itemColor, 0.12) },
+                          ]}
+                        >
+                          <EntryIcon
+                            iconString={item.emoji || (item.type === 'alcohol' ? '🍺' : '🍃')}
+                            size={20}
+                            color={itemColor}
+                          />
                         </View>
                         <View style={styles.logInfo}>
                           <Text style={styles.logName}>{item.name}</Text>
-                          <Text style={styles.logTime}>{timeStr} ({timeAgo(item.timestamp)})</Text>
+                          <Text style={styles.logTime}>
+                            {doseSubtitle ? `${doseSubtitle} · ` : ''}{timeStr} ({timeAgo(item.timestamp)})
+                          </Text>
                           {!isFinished && (
                             <View style={styles.inProgressBadge}>
                               <Text style={styles.inProgressText}>● In Progress</Text>
@@ -354,6 +406,26 @@ export default function DashboardScreen({ navigation }: { navigation: { navigate
         onCancel={() => setEndSessionConfirmVisible(false)}
         onConfirm={confirmEndSession}
       />
+
+      <ContinueSessionModal
+        visible={!!pendingQuickLaunch}
+        match={pendingQuickLaunch?.match ?? null}
+        itemName={pendingQuickLaunch?.fav.name}
+        onContinue={() => {
+          if (!pendingQuickLaunch) return;
+          commitFavoriteConsumption(
+            pendingQuickLaunch.fav,
+            pendingQuickLaunch.match.session.id
+          );
+          setPendingQuickLaunch(null);
+        }}
+        onStartNew={() => {
+          if (!pendingQuickLaunch) return;
+          commitFavoriteConsumption(pendingQuickLaunch.fav);
+          setPendingQuickLaunch(null);
+        }}
+        onCancel={() => setPendingQuickLaunch(null)}
+      />
     </SafeAreaView>
   );
 }
@@ -396,9 +468,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255,255,255,0.05)',
   },
-  logIcon: {
-    fontSize: 24,
-    marginRight: 16,
+  logIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
   },
   logInfo: {
     flex: 1,

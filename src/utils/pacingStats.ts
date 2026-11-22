@@ -1,5 +1,8 @@
-import { Consumption, FavoriteItem } from '../store';
+import type { Consumption } from '../store';
+import { formatConsumableSubtitle } from './consumableMeta';
 import { calculateStandardDrinks } from './mathEngine';
+
+export { formatConsumableSubtitle as formatFavoriteSubtitle };
 
 export interface SessionPacingStats {
   totalStandardDrinks: number;
@@ -85,33 +88,4 @@ export function formatStopwatch(fromTimestamp: number, now: number): string {
     return `${hours}:${pad2(minutes)}:${pad2(seconds)}`;
   }
   return `${pad2(minutes)}:${pad2(seconds)}`;
-}
-
-/**
- * Builds a concise dose subtitle for 1-tap Favorite cards (e.g. "10mg · edible").
- */
-export function formatFavoriteSubtitle(fav: FavoriteItem): string {
-  if (fav.type === 'thc') {
-    if (typeof fav.mg === 'number' && Number.isFinite(fav.mg) && fav.mg > 0) {
-      const mgStr = `${Number(fav.mg.toFixed(1))}mg`;
-      if (fav.method === 'inhaled' || fav.method === 'edible') {
-        return `${mgStr} · ${fav.method}`;
-      }
-      return mgStr;
-    }
-    return fav.method || '';
-  }
-
-  if (
-    typeof fav.volumeOz === 'number' &&
-    Number.isFinite(fav.volumeOz) &&
-    fav.volumeOz > 0 &&
-    typeof fav.abvPercent === 'number' &&
-    Number.isFinite(fav.abvPercent) &&
-    fav.abvPercent > 0
-  ) {
-    return `${Number(fav.volumeOz.toFixed(1))}oz · ${Number(fav.abvPercent.toFixed(1))}%`;
-  }
-
-  return '';
 }

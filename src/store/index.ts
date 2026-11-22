@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import * as Crypto from 'expo-crypto';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { zustandStorage } from './storage';
+import { normalizeLegacyConsumableName } from '../utils/consumableMeta';
+import { computeMergedSession } from '../utils/sessionMerge';
 
 export type Units = 'imperial' | 'metric';
 export type Gender = 'male' | 'female' | 'other';
@@ -15,6 +17,7 @@ export interface UserProfile {
   isOnboarded: boolean;
   maxBAC: number;
   maxTHC: number;
+  lockScreenTimerEnabled?: boolean;
 }
 
 export interface Session {
@@ -33,6 +36,7 @@ export interface Consumption {
   type: ConsumableType;
   name: string;
   emoji?: string;
+  color?: string;
   timestamp: number;
   calories?: number;
   durationMins?: number;
@@ -48,26 +52,41 @@ export interface FavoriteItem extends Omit<Consumption, 'id' | 'sessionId' | 'ti
   id: string;
 }
 
+export interface AddConsumptionOptions {
+  targetSessionId?: string;
+  reopenTarget?: boolean;
+}
+
 export interface AppState {
   profile: UserProfile;
   sessions: Session[];
   activeSessionId: string | null;
   isQuickEntryVisible: boolean;
   quickEntryMode: 'default' | 'custom';
+  quickEntryTargetSessionId: string | null;
   isStartSessionVisible: boolean;
   consumptions: Consumption[];
   favorites: FavoriteItem[];
   
-  setQuickEntryVisible: (visible: boolean, mode?: 'default' | 'custom') => void;
+  setQuickEntryVisible: (
+    visible: boolean,
+    mode?: 'default' | 'custom',
+    targetSessionId?: string | null
+  ) => void;
   setStartSessionVisible: (visible: boolean) => void;
   setProfile: (profile: Partial<UserProfile>) => void;
   completeOnboarding: () => void;
   
   startSession: (mood: number, hunger: number, anxiety: number, initialConsumptions?: Omit<Consumption, 'id' | 'sessionId'>[], hasSubjectiveCheckIn?: boolean) => void;
   endSession: () => void;
+  reopenSession: (sessionId: string) => void;
+  mergeSessions: (sessionIds: string[]) => string | null;
   updateSessionState: (mood: number, hunger: number, anxiety: number) => void;
   
-  addConsumption: (item: Omit<Consumption, 'id' | 'sessionId'> & { id?: string }) => void;
+  addConsumption: (
+    item: Omit<Consumption, 'id' | 'sessionId'> & { id?: string },
+    options?: AddConsumptionOptions
+  ) => void;
   updateConsumption: (id: string, updates: Partial<Consumption>) => void;
   removeConsumption: (id: string) => void;
   
@@ -86,7 +105,59 @@ const DEFAULT_PROFILE: UserProfile = {
   isOnboarded: false,
   maxBAC: 0.08,
   maxTHC: 10,
+  lockScreenTimerEnabled: true,
 };
+
+/**
+ * Migrates persisted Zustand snapshots across store schema versions.
+ * In v2, normalizes exact legacy stock consumable names (in both favorites
+ * and historical logs) while preserving any user-customized brand names.
+ */
+export function migratePersistedState(
+  persistedState: unknown,
+  version: number
+): Partial<AppState> {
+  if (!persistedState || typeof persistedState !== 'object') {
+    return {};
+  }
+
+  const raw = { ...(persistedState as Record<string, unknown>) };
+
+  if (version < 2) {
+    if (Array.isArray(raw.favorites)) {
+      raw.favorites = raw.favorites.map((fav) => {
+        if (!fav || typeof fav !== 'object') return fav;
+        const item = fav as Record<string, unknown>;
+        return typeof item.name === 'string'
+          ? { ...item, name: normalizeLegacyConsumableName(item.name) }
+          : item;
+      });
+    }
+
+    if (Array.isArray(raw.consumptions)) {
+      raw.consumptions = raw.consumptions.map((c) => {
+        if (!c || typeof c !== 'object') return c;
+        const item = c as Record<string, unknown>;
+        return typeof item.name === 'string'
+          ? { ...item, name: normalizeLegacyConsumableName(item.name) }
+          : item;
+      });
+    }
+
+    if (raw.profile && typeof raw.profile === 'object') {
+      const prof = raw.profile as Record<string, unknown>;
+      raw.profile = {
+        ...prof,
+        lockScreenTimerEnabled:
+          typeof prof.lockScreenTimerEnabled === 'boolean'
+            ? prof.lockScreenTimerEnabled
+            : true,
+      };
+    }
+  }
+
+  return raw as Partial<AppState>;
+}
 
 export const useAppStore = create<AppState>()(
   persist(
@@ -96,23 +167,25 @@ export const useAppStore = create<AppState>()(
       activeSessionId: null,
       isQuickEntryVisible: false,
       quickEntryMode: 'default',
+      quickEntryTargetSessionId: null,
       isStartSessionVisible: false,
       consumptions: [],
       favorites: [
-        { id: 'fav1', type: 'alcohol', name: 'Wine (5oz, 12%)', emoji: 'Ionicons:wine', volumeOz: 5, abvPercent: 12, durationMins: 45 },
-        { id: 'fav2', type: 'alcohol', name: 'Standard Drink (12oz, 5%)', emoji: 'Ionicons:beer-outline', volumeOz: 12, abvPercent: 5, durationMins: 45 },
-        { id: 'fav3', type: 'thc', name: 'Standard Joint (10mg)', emoji: 'FontAwesome5:wind', method: 'inhaled', mg: 10, durationMins: 0 },
-        { id: 'fav4', type: 'thc', name: '1 Puff (2mg)', emoji: 'FontAwesome5:wind', method: 'inhaled', mg: 2, durationMins: 0 },
-        { id: 'fav5', type: 'thc', name: 'Gummy (10mg)', emoji: 'FontAwesome5:cookie-bite', method: 'edible', mg: 10, durationMins: 0 },
+        { id: 'fav1', type: 'alcohol', name: 'Wine', emoji: 'Ionicons:wine', volumeOz: 5, abvPercent: 12, durationMins: 45 },
+        { id: 'fav2', type: 'alcohol', name: 'Beer', emoji: 'Ionicons:beer-outline', volumeOz: 12, abvPercent: 5, durationMins: 45 },
+        { id: 'fav3', type: 'thc', name: 'Joint', emoji: 'FontAwesome5:wind', method: 'inhaled', mg: 10, durationMins: 0 },
+        { id: 'fav4', type: 'thc', name: 'Puff', emoji: 'FontAwesome5:wind', method: 'inhaled', mg: 2, durationMins: 0 },
+        { id: 'fav5', type: 'thc', name: 'Gummy', emoji: 'FontAwesome5:cookie-bite', method: 'edible', mg: 10, durationMins: 0 },
       ],
 
       setProfile: (newProfile) =>
         set((state) => ({ profile: { ...state.profile, ...newProfile } })),
         
-      setQuickEntryVisible: (visible, mode) =>
+      setQuickEntryVisible: (visible, mode, targetSessionId) =>
         set({
           isQuickEntryVisible: visible,
           quickEntryMode: visible ? (mode ?? 'default') : 'default',
+          quickEntryTargetSessionId: visible ? (targetSessionId ?? null) : null,
         }),
         
       setStartSessionVisible: (visible) =>
@@ -124,9 +197,10 @@ export const useAppStore = create<AppState>()(
       startSession: (mood, hunger, anxiety, initialConsumptions, hasSubjectiveCheckIn = true) => 
         set((state) => {
           const sessionId = Crypto.randomUUID();
+          const now = Date.now();
           const newSession: Session = {
             id: sessionId,
-            startTime: Date.now(),
+            startTime: now,
             endTime: null,
             mood,
             hunger,
@@ -140,7 +214,7 @@ export const useAppStore = create<AppState>()(
               ...c,
               id: Crypto.randomUUID(),
               sessionId,
-              timestamp: c.timestamp ?? Date.now()
+              timestamp: c.timestamp ?? now
             }));
             newConsumptions = [...newConsumptions, ...mappedConsumptions];
           }
@@ -162,6 +236,45 @@ export const useAppStore = create<AppState>()(
             activeSessionId: null
           };
         }),
+
+      reopenSession: (sessionId) =>
+        set((state) => {
+          const target = state.sessions.find((s) => s.id === sessionId);
+          if (!target) return state;
+          const now = Date.now();
+          return {
+            sessions: state.sessions.map((s) => {
+              if (s.id === sessionId) {
+                return { ...s, endTime: null };
+              }
+              if (s.endTime === null) {
+                return { ...s, endTime: now };
+              }
+              return s;
+            }),
+            activeSessionId: sessionId,
+          };
+        }),
+
+      mergeSessions: (sessionIds) => {
+        let mergedId: string | null = null;
+        set((state) => {
+          const result = computeMergedSession(
+            state.sessions,
+            state.consumptions,
+            sessionIds,
+            state.activeSessionId
+          );
+          mergedId = result.mergedSessionId;
+          if (!result.mergedSessionId) return state;
+          return {
+            sessions: result.sessions,
+            consumptions: result.consumptions,
+            activeSessionId: result.activeSessionId,
+          };
+        });
+        return mergedId;
+      },
         
       updateSessionState: (mood, hunger, anxiety) =>
         set((state) => {
@@ -175,10 +288,45 @@ export const useAppStore = create<AppState>()(
           };
         }),
         
-      addConsumption: (item) =>
+      addConsumption: (item, options) =>
         set((state) => {
           const now = Date.now();
           const itemTimestamp = item.timestamp ?? now;
+          const targetSession = options?.targetSessionId
+            ? state.sessions.find((s) => s.id === options.targetSessionId)
+            : undefined;
+
+          if (targetSession) {
+            const shouldReopen = Boolean(options?.reopenTarget);
+            const newConsumption: Consumption = {
+              ...item,
+              id: item.id || Crypto.randomUUID(),
+              sessionId: targetSession.id,
+              timestamp: itemTimestamp,
+            };
+
+            const updatedSessions = state.sessions.map((s) => {
+              if (s.id === targetSession.id) {
+                const nextStart = Math.min(s.startTime, itemTimestamp);
+                const nextEnd = shouldReopen
+                  ? null
+                  : s.endTime !== null
+                    ? Math.max(s.endTime, itemTimestamp)
+                    : null;
+                return { ...s, startTime: nextStart, endTime: nextEnd };
+              }
+              if (shouldReopen && s.endTime === null) {
+                return { ...s, endTime: now };
+              }
+              return s;
+            });
+
+            return {
+              sessions: updatedSessions,
+              activeSessionId: shouldReopen ? targetSession.id : state.activeSessionId,
+              consumptions: [...state.consumptions, newConsumption],
+            };
+          }
 
           if (!state.activeSessionId) {
             const sessionId = Crypto.randomUUID();
@@ -210,17 +358,51 @@ export const useAppStore = create<AppState>()(
             sessionId: state.activeSessionId,
             timestamp: itemTimestamp,
           };
+          const activeSession = state.sessions.find((s) => s.id === state.activeSessionId);
+          const needsStartExpansion = activeSession && itemTimestamp < activeSession.startTime;
+
           return {
+            sessions: needsStartExpansion
+              ? state.sessions.map((s) =>
+                  s.id === state.activeSessionId
+                    ? { ...s, startTime: Math.min(s.startTime, itemTimestamp) }
+                    : s
+                )
+              : state.sessions,
             consumptions: [...state.consumptions, newConsumption],
           };
         }),
 
       updateConsumption: (id, updates) =>
-        set((state) => ({
-          consumptions: state.consumptions.map(c => 
+        set((state) => {
+          const existing = state.consumptions.find((c) => c.id === id);
+          const nextTimestamp = updates.timestamp;
+          const updatedConsumptions = state.consumptions.map(c => 
             c.id === id ? { ...c, ...updates } : c
-          )
-        })),
+          );
+
+          if (
+            existing &&
+            typeof nextTimestamp === 'number' &&
+            Number.isFinite(nextTimestamp)
+          ) {
+            const owningSession = state.sessions.find((s) => s.id === existing.sessionId);
+            if (owningSession && nextTimestamp < owningSession.startTime) {
+              return {
+                consumptions: updatedConsumptions,
+                sessions: state.sessions.map((s) =>
+                  s.id === existing.sessionId
+                    ? { ...s, startTime: Math.min(s.startTime, nextTimestamp) }
+                    : s
+                ),
+              };
+            }
+          }
+
+          return {
+            consumptions: updatedConsumptions,
+          };
+        }),
 
       removeConsumption: (id) =>
         set((state) => ({
@@ -277,7 +459,7 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'tracker-storage',
-      version: 1,
+      version: 2,
       storage: createJSONStorage(() => zustandStorage),
       partialize: (state) => ({
         profile: state.profile,
@@ -286,12 +468,7 @@ export const useAppStore = create<AppState>()(
         consumptions: state.consumptions,
         favorites: state.favorites,
       }),
-      migrate: (persistedState: unknown) => {
-        if (!persistedState || typeof persistedState !== 'object') {
-          return {};
-        }
-        return persistedState as Partial<AppState>;
-      },
+      migrate: migratePersistedState,
       merge: (persistedState, currentState) => {
         const typedPersisted = (persistedState as Partial<AppState>) || {};
         const sessions = Array.isArray(typedPersisted.sessions)
@@ -308,6 +485,7 @@ export const useAppStore = create<AppState>()(
           activeSessionId,
           isQuickEntryVisible: false,
           quickEntryMode: 'default',
+          quickEntryTargetSessionId: null,
           isStartSessionVisible: false,
           profile: {
             ...currentState.profile,

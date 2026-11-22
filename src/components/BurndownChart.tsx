@@ -26,6 +26,7 @@ export interface BurndownChartProps {
   lastRefreshed?: number;
   fixedTimeWindowHours?: number;
   hideTimeToggles?: boolean;
+  chartWidthOverride?: number;
 }
 
 export default function BurndownChart({
@@ -34,9 +35,10 @@ export default function BurndownChart({
   lastRefreshed,
   fixedTimeWindowHours,
   hideTimeToggles,
+  chartWidthOverride,
 }: BurndownChartProps) {
   const { width: windowWidth } = useWindowDimensions();
-  const CHART_WIDTH = windowWidth || 360;
+  const CHART_WIDTH = chartWidthOverride || windowWidth || 360;
 
   const storeConsumptions = useAppStore((state) => state.consumptions);
   const profile = useAppStore((state) => state.profile);

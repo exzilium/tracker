@@ -1,5 +1,6 @@
 import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { StyleSheet, View } from 'react-native';
+import { NavigationContainer, NavigatorScreenParams } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -9,23 +10,26 @@ import OnboardingScreen from '../screens/OnboardingScreen';
 import DashboardScreen from '../screens/DashboardScreen';
 import SessionsListScreen from '../screens/SessionsListScreen';
 import SessionDetailScreen from '../screens/SessionDetailScreen';
+import AnalyticsScreen from '../screens/AnalyticsScreen';
 import ManageFavoritesScreen from '../screens/ManageFavoritesScreen';
 import DonationScreen from '../screens/DonationScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import QuickEntry from '../components/QuickEntry';
 import StartSessionModal from '../components/StartSessionModal';
+import LockScreenTimerSync from '../components/LockScreenTimerSync';
 import { colors } from '../theme';
 
 export type MainTabParamList = {
   Dashboard: undefined;
   SessionsList: undefined;
   Add: undefined;
+  Analytics: undefined;
   Settings: undefined;
 };
 
 export type RootStackParamList = {
   Onboarding: undefined;
-  MainTabs: undefined;
+  MainTabs: NavigatorScreenParams<MainTabParamList> | undefined;
   SessionDetail: { session: Pick<Session, 'id' | 'startTime' | 'endTime'> };
   Donation: undefined;
   ManageFavorites: { returnToQuickEntry?: boolean } | undefined;
@@ -34,7 +38,7 @@ export type RootStackParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
-// Temporary Empty Component for the (+) Tab
+// Placeholder Component for the centered (+) Quick Entry action tab
 const DummyComponent = () => null;
 
 function MainTabNavigator() {
@@ -50,11 +54,11 @@ function MainTabNavigator() {
           borderTopWidth: 0,
           elevation: 0,
           height: 64 + insets.bottom,
-          paddingBottom: insets.bottom ? insets.bottom : 12,
-          paddingTop: 12,
+          paddingBottom: insets.bottom ? insets.bottom : 8,
+          paddingTop: 6,
         },
         tabBarLabelStyle: {
-          marginTop: 4,
+          marginTop: 2,
           fontSize: 11,
         },
         tabBarActiveTintColor: colors.primary,
@@ -76,7 +80,23 @@ function MainTabNavigator() {
         component={DummyComponent} 
         options={{
           tabBarShowLabel: false,
-          tabBarIcon: ({ color }) => <Feather name="plus-circle" size={32} color={color} />
+          tabBarLabel: () => null,
+          tabBarAccessibilityLabel: 'Add entry',
+          tabBarItemStyle: {
+            justifyContent: 'center',
+            alignItems: 'center',
+          },
+          tabBarIconStyle: {
+            width: 46,
+            height: 46,
+            alignItems: 'center',
+            justifyContent: 'center',
+          },
+          tabBarIcon: () => (
+            <View style={styles.addTabPill}>
+              <Feather name="plus" size={26} color={colors.background} />
+            </View>
+          ),
         }}
         listeners={{
           tabPress: (e) => {
@@ -84,6 +104,11 @@ function MainTabNavigator() {
             setQuickEntryVisible(true, 'default');
           },
         }}
+      />
+      <Tab.Screen
+        name="Analytics"
+        component={AnalyticsScreen}
+        options={{ tabBarLabel: 'Data', tabBarIcon: ({ color, size }) => <Feather name="bar-chart-2" size={size} color={color} /> }}
       />
       <Tab.Screen 
         name="Settings" 
@@ -115,8 +140,25 @@ export default function RootNavigator() {
         <>
           <QuickEntry />
           <StartSessionModal />
+          <LockScreenTimerSync />
         </>
       )}
     </NavigationContainer>
   );
 }
+
+const styles = StyleSheet.create({
+  addTabPill: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+});

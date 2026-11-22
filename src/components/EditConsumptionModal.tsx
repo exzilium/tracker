@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, Modal, TextInput, TouchableOpacity, ScrollView 
 import { useAppStore, Consumption, IngestionMethod } from '../store';
 import { colors, typography } from '../theme';
 import EntryIcon from './EntryIcon';
+import ColorPickerPopover from './ColorPickerPopover';
+import { getConsumableColor } from '../utils/consumableMeta';
 
 const ALCOHOL_ICONS = [
   'Ionicons:beer-outline',
@@ -37,6 +39,7 @@ export default function EditConsumptionModal({ visible, consumption, onClose }: 
 
   const [editName, setEditName] = useState('');
   const [editEmoji, setEditEmoji] = useState('');
+  const [editColor, setEditColor] = useState<string | undefined>(undefined);
   const [editAmount, setEditAmount] = useState('');
   const [editAbv, setEditAbv] = useState('');
   const [editMethod, setEditMethod] = useState<IngestionMethod>('edible');
@@ -48,6 +51,7 @@ export default function EditConsumptionModal({ visible, consumption, onClose }: 
     if (consumption) {
       setEditName(consumption.name);
       setEditEmoji(consumption.emoji || (consumption.type === 'alcohol' ? '🍺' : '🍃'));
+      setEditColor(consumption.color);
       setEditDuration((consumption.durationMins || 0).toString());
       setEditCalories(consumption.calories ? consumption.calories.toString() : '');
       setEditTimestamp(consumption.timestamp);
@@ -70,6 +74,7 @@ export default function EditConsumptionModal({ visible, consumption, onClose }: 
     const updates: Partial<Consumption> = {
       name: editName.trim() || consumption.name,
       emoji: editEmoji,
+      color: editColor,
       durationMins: consumption.type === 'alcohol' ? Math.max(0, parseFloat(editDuration) || 0) : 0,
       calories: !isNaN(parsedCals) && parsedCals >= 0 ? parsedCals : undefined,
       timestamp: Math.min(Date.now(), editTimestamp),
@@ -89,149 +94,173 @@ export default function EditConsumptionModal({ visible, consumption, onClose }: 
 
   if (!consumption) return null;
 
-  return (
-    <Modal visible={visible} transparent animationType="fade">
-      <View style={styles.modalBg}>
-        <View style={styles.modalCard}>
-          <Text style={styles.modalTitle}>Edit Log</Text>
+  const activePreviewColor = getConsumableColor({
+    type: consumption.type,
+    color: editColor,
+  });
 
-          <View style={styles.inputRow}>
-            <View style={{flex: 1}}>
-              <Text style={styles.inputLabel}>Name</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Name"
-                placeholderTextColor={colors.textSecondary}
-                value={editName}
-                onChangeText={setEditName}
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.modalBg}>
+        <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Edit Log</Text>
+
+            <View style={styles.inputRow}>
+              <View style={{flex: 1}}>
+                <Text style={styles.inputLabel}>Name</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Name"
+                  placeholderTextColor={colors.textSecondary}
+                  value={editName}
+                  onChangeText={setEditName}
+                />
+              </View>
+            </View>
+
+            <Text style={styles.inputLabel}>Time Logged</Text>
+            <View style={styles.timeShiftRow}>
+              <TouchableOpacity
+                style={styles.shiftBtn}
+                onPress={() => setEditTimestamp(Math.max(1, editTimestamp - (15 * 60000)))}
+              >
+                <Text style={styles.shiftBtnText}>-15m</Text>
+              </TouchableOpacity>
+              <Text style={styles.timeText}>
+                {new Date(editTimestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+              </Text>
+              <TouchableOpacity
+                style={styles.shiftBtn}
+                onPress={() => setEditTimestamp(Math.min(Date.now(), editTimestamp + (15 * 60000)))}
+              >
+                <Text style={styles.shiftBtnText}>+15m</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.iconHeaderRow}>
+              <Text style={[styles.inputLabel, { marginBottom: 0 }]}>Select Icon</Text>
+              <ColorPickerPopover
+                selectedColor={editColor}
+                type={consumption.type}
+                onSelectColor={setEditColor}
               />
             </View>
-          </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginBottom: 16}}>
+              {(consumption.type === 'alcohol' ? ALCOHOL_ICONS : THC_ICONS).map(icon => {
+                const isSelected = editEmoji === icon;
+                return (
+                  <TouchableOpacity
+                    key={icon}
+                    style={[
+                      styles.iconPickerBtn,
+                      isSelected && { backgroundColor: activePreviewColor },
+                    ]}
+                    onPress={() => setEditEmoji(icon)}
+                  >
+                    <EntryIcon
+                      iconString={icon}
+                      size={24}
+                      color={isSelected ? colors.background : activePreviewColor}
+                    />
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
 
-          <Text style={styles.inputLabel}>Time Logged</Text>
-          <View style={styles.timeShiftRow}>
-            <TouchableOpacity
-              style={styles.shiftBtn}
-              onPress={() => setEditTimestamp(Math.max(1, editTimestamp - (15 * 60000)))}
-            >
-              <Text style={styles.shiftBtnText}>-15m</Text>
-            </TouchableOpacity>
-            <Text style={styles.timeText}>
-              {new Date(editTimestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
-            </Text>
-            <TouchableOpacity
-              style={styles.shiftBtn}
-              onPress={() => setEditTimestamp(Math.min(Date.now(), editTimestamp + (15 * 60000)))}
-            >
-              <Text style={styles.shiftBtnText}>+15m</Text>
-            </TouchableOpacity>
-          </View>
+            {consumption.type === 'alcohol' ? (
+              <>
+                <View style={styles.inputRow}>
+                  <View style={{flex: 1, marginRight: 8}}>
+                    <Text style={styles.inputLabel}>Volume (oz)</Text>
+                    <TextInput
+                      style={styles.input}
+                      keyboardType="numeric"
+                      value={editAmount}
+                      onChangeText={setEditAmount}
+                    />
+                  </View>
+                  <View style={{flex: 1}}>
+                    <Text style={styles.inputLabel}>ABV %</Text>
+                    <TextInput
+                      style={styles.input}
+                      keyboardType="numeric"
+                      value={editAbv}
+                      onChangeText={setEditAbv}
+                    />
+                  </View>
+                </View>
+                <View style={styles.inputRow}>
+                  <View style={{flex: 1, marginRight: 8}}>
+                    <Text style={styles.inputLabel}>Duration (mins)</Text>
+                    <TextInput
+                      style={styles.input}
+                      keyboardType="numeric"
+                      value={editDuration}
+                      onChangeText={setEditDuration}
+                    />
+                  </View>
+                  <View style={{flex: 1}}>
+                    <Text style={styles.inputLabel}>Calories (est)</Text>
+                    <TextInput
+                      style={styles.input}
+                      keyboardType="numeric"
+                      value={editCalories}
+                      onChangeText={setEditCalories}
+                    />
+                  </View>
+                </View>
+              </>
+            ) : (
+              <>
+                <Text style={styles.inputLabel}>Ingestion Method</Text>
+                <View style={styles.typeRow}>
+                  <TouchableOpacity
+                    style={[styles.typeBtn, editMethod === 'edible' && styles.typeBtnActive]}
+                    onPress={() => setEditMethod('edible')}
+                  >
+                    <Text style={styles.typeText}>Edible</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.typeBtn, editMethod === 'inhaled' && styles.typeBtnActive]}
+                    onPress={() => setEditMethod('inhaled')}
+                  >
+                    <Text style={styles.typeText}>Inhaled</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.inputRow}>
+                  <View style={{flex: 1, marginRight: 8}}>
+                    <Text style={styles.inputLabel}>Amount (mg)</Text>
+                    <TextInput
+                      style={styles.input}
+                      keyboardType="numeric"
+                      value={editAmount}
+                      onChangeText={setEditAmount}
+                    />
+                  </View>
+                  <View style={{flex: 1}}>
+                    <Text style={styles.inputLabel}>Calories (est)</Text>
+                    <TextInput
+                      style={styles.input}
+                      keyboardType="numeric"
+                      value={editCalories}
+                      onChangeText={setEditCalories}
+                    />
+                  </View>
+                </View>
+              </>
+            )}
 
-          <Text style={styles.inputLabel}>Select Icon</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginBottom: 16}}>
-            {(consumption.type === 'alcohol' ? ALCOHOL_ICONS : THC_ICONS).map(icon => (
-              <TouchableOpacity
-                key={icon}
-                style={[styles.iconPickerBtn, editEmoji === icon && styles.iconPickerBtnActive]}
-                onPress={() => setEditEmoji(icon)}
-              >
-                <EntryIcon iconString={icon} size={24} color={editEmoji === icon ? colors.background : colors.text} />
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
+                <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
-            ))}
-          </ScrollView>
-
-          {consumption.type === 'alcohol' ? (
-            <>
-              <View style={styles.inputRow}>
-                <View style={{flex: 1, marginRight: 8}}>
-                  <Text style={styles.inputLabel}>Volume (oz)</Text>
-                  <TextInput
-                    style={styles.input}
-                    keyboardType="numeric"
-                    value={editAmount}
-                    onChangeText={setEditAmount}
-                  />
-                </View>
-                <View style={{flex: 1}}>
-                  <Text style={styles.inputLabel}>ABV %</Text>
-                  <TextInput
-                    style={styles.input}
-                    keyboardType="numeric"
-                    value={editAbv}
-                    onChangeText={setEditAbv}
-                  />
-                </View>
-              </View>
-              <View style={styles.inputRow}>
-                <View style={{flex: 1, marginRight: 8}}>
-                  <Text style={styles.inputLabel}>Duration (mins)</Text>
-                  <TextInput
-                    style={styles.input}
-                    keyboardType="numeric"
-                    value={editDuration}
-                    onChangeText={setEditDuration}
-                  />
-                </View>
-                <View style={{flex: 1}}>
-                  <Text style={styles.inputLabel}>Calories (est)</Text>
-                  <TextInput
-                    style={styles.input}
-                    keyboardType="numeric"
-                    value={editCalories}
-                    onChangeText={setEditCalories}
-                  />
-                </View>
-              </View>
-            </>
-          ) : (
-            <>
-              <Text style={styles.inputLabel}>Ingestion Method</Text>
-              <View style={styles.typeRow}>
-                <TouchableOpacity
-                  style={[styles.typeBtn, editMethod === 'edible' && styles.typeBtnActive]}
-                  onPress={() => setEditMethod('edible')}
-                >
-                  <Text style={styles.typeText}>Edible</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.typeBtn, editMethod === 'inhaled' && styles.typeBtnActive]}
-                  onPress={() => setEditMethod('inhaled')}
-                >
-                  <Text style={styles.typeText}>Inhaled</Text>
-                </TouchableOpacity>
-              </View>
-              <View style={styles.inputRow}>
-                <View style={{flex: 1, marginRight: 8}}>
-                  <Text style={styles.inputLabel}>Amount (mg)</Text>
-                  <TextInput
-                    style={styles.input}
-                    keyboardType="numeric"
-                    value={editAmount}
-                    onChangeText={setEditAmount}
-                  />
-                </View>
-                <View style={{flex: 1}}>
-                  <Text style={styles.inputLabel}>Calories (est)</Text>
-                  <TextInput
-                    style={styles.input}
-                    keyboardType="numeric"
-                    value={editCalories}
-                    onChangeText={setEditCalories}
-                  />
-                </View>
-              </View>
-            </>
-          )}
-
-          <View style={styles.modalActions}>
-            <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
-              <Text style={styles.cancelBtnText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-              <Text style={styles.saveBtnText}>Save</Text>
-            </TouchableOpacity>
+              <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
+                <Text style={styles.saveBtnText}>Save</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
+        </ScrollView>
       </View>
     </Modal>
   );
@@ -286,6 +315,12 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: 4,
     fontWeight: 'bold',
+  },
+  iconHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
   },
   input: {
     backgroundColor: colors.surface,

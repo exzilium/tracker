@@ -9,6 +9,8 @@ import { useAppStore, Gender, Units, Session, Consumption, FavoriteItem } from '
 import { colors, typography } from '../theme';
 import { AppAlert } from '../utils/AppAlert';
 import { KG_TO_LBS } from '../utils/currentLevels';
+import { isValidHexColor, normalizeLegacyConsumableName } from '../utils/consumableMeta';
+import { ensureNotificationPermission } from '../utils/notifications';
 
 const MAX_BACKUP_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
 const MAX_ITEMS_PER_COLLECTION = 10_000;
@@ -46,6 +48,9 @@ export function sanitizeImportedData(parsed: unknown) {
 
   const maxTHCNum = Number(rawProfile.maxTHC);
   const maxTHC = Number.isFinite(maxTHCNum) && maxTHCNum > 0 && maxTHCNum <= 1000 ? maxTHCNum : 10;
+
+  const parsedVersion = Number(raw.version);
+  const shouldNormalizeLegacyNames = !Number.isFinite(parsedVersion) || parsedVersion < 2;
 
   if (!Array.isArray(raw.consumptions)) return null;
 
@@ -127,15 +132,20 @@ export function sanitizeImportedData(parsed: unknown) {
     const durationMins = item.durationMins !== undefined ? Number(item.durationMins) : undefined;
     const calories = item.calories !== undefined ? Number(item.calories) : undefined;
 
+    const normalizedName = shouldNormalizeLegacyNames
+      ? normalizeLegacyConsumableName(item.name)
+      : item.name;
+
     consumptions.push({
       id: item.id,
       sessionId: item.sessionId,
       type: item.type,
-      name: item.name.slice(0, 120),
+      name: normalizedName.slice(0, 120),
       emoji:
         typeof item.emoji === 'string' && item.emoji.length <= MAX_EMOJI_LENGTH
           ? item.emoji
           : undefined,
+      color: isValidHexColor(item.color) ? item.color : undefined,
       timestamp,
       calories:
         calories !== undefined && Number.isFinite(calories) && calories >= 0 && calories <= MAX_CALORIES
@@ -188,14 +198,19 @@ export function sanitizeImportedData(parsed: unknown) {
       const durationMins = item.durationMins !== undefined ? Number(item.durationMins) : undefined;
       const calories = item.calories !== undefined ? Number(item.calories) : undefined;
 
+      const normalizedFavName = shouldNormalizeLegacyNames
+        ? normalizeLegacyConsumableName(item.name)
+        : item.name;
+
       favorites.push({
         id: item.id,
         type: item.type,
-        name: item.name.slice(0, 120),
+        name: normalizedFavName.slice(0, 120),
         emoji:
           typeof item.emoji === 'string' && item.emoji.length <= MAX_EMOJI_LENGTH
             ? item.emoji
             : undefined,
+        color: isValidHexColor(item.color) ? item.color : undefined,
         calories:
           calories !== undefined && Number.isFinite(calories) && calories >= 0 && calories <= MAX_CALORIES
             ? calories
@@ -238,6 +253,10 @@ export function sanitizeImportedData(parsed: unknown) {
       isOnboarded: Boolean(rawProfile.isOnboarded ?? true),
       maxBAC,
       maxTHC,
+      lockScreenTimerEnabled:
+        typeof rawProfile.lockScreenTimerEnabled === 'boolean'
+          ? rawProfile.lockScreenTimerEnabled
+          : true,
     },
     sessions,
     consumptions,
@@ -383,7 +402,7 @@ export default function SettingsScreen({ navigation }: { navigation: { goBack: (
     try {
       const { profile: currentProfile, sessions, activeSessionId, consumptions, favorites } = useAppStore.getState();
       const exportPayload = {
-        version: 1,
+        version: 2,
         profile: currentProfile,
         sessions,
         activeSessionId,
@@ -524,6 +543,19 @@ export default function SettingsScreen({ navigation }: { navigation: { goBack: (
     }
   };
 
+  const handleToggleLockScreenTimer = async (nextValue: boolean) => {
+    setProfile({ lockScreenTimerEnabled: nextValue });
+    if (nextValue && Platform.OS === 'android') {
+      const granted = await ensureNotificationPermission();
+      if (!granted) {
+        AppAlert(
+          'Notifications Disabled',
+          'Enable notifications for Space Tether in Android Settings so the lock screen counter can appear.'
+        );
+      }
+    }
+  };
+
   return (
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       <View style={styles.header}>
@@ -535,6 +567,43 @@ export default function SettingsScreen({ navigation }: { navigation: { goBack: (
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
+
+        <Text style={styles.sectionTitle}>Lock Screen Counter</Text>
+        <View style={styles.card}>
+          <View style={styles.switchRow}>
+            <View style={{ flex: 1, paddingRight: 12 }}>
+              <Text style={styles.label}>Discreet Lock Screen Timer</Text>
+              <Text style={styles.caption}>
+                Shows live session &amp; dose stopwatches on your Android lock screen with zero substance labels.
+              </Text>
+            </View>
+            <Switch
+              value={profile.lockScreenTimerEnabled !== false}
+              onValueChange={handleToggleLockScreenTimer}
+              trackColor={{ false: colors.surface, true: colors.primary }}
+              thumbColor={colors.text}
+            />
+          </View>
+
+          <View style={styles.lockPreviewBox}>
+            <Text style={styles.lockPreviewBrand}>Space Tether</Text>
+            <View style={styles.lockPreviewTimers}>
+              <View style={styles.lockPreviewItem}>
+                <View style={[styles.lockDot, { backgroundColor: colors.primary }]} />
+                <Text style={styles.lockPreviewTime}>18:42</Text>
+              </View>
+              <View style={styles.lockPreviewItem}>
+                <View style={[styles.lockDot, { backgroundColor: colors.secondary }]} />
+                <Text style={styles.lockPreviewTime}>42:15</Text>
+              </View>
+            </View>
+          </View>
+          {Platform.OS !== 'android' && (
+            <Text style={[styles.caption, { marginTop: 8, marginBottom: 0 }]}>
+              Active on Android devices with notification permission enabled.
+            </Text>
+          )}
+        </View>
 
         <Text style={styles.sectionTitle}>Danger Limits</Text>
         <View style={styles.card}>
@@ -804,5 +873,47 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontWeight: 'bold',
     fontSize: 16,
+  },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  lockPreviewBox: {
+    backgroundColor: colors.surface,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  lockPreviewBrand: {
+    ...typography.caption,
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginBottom: 6,
+  },
+  lockPreviewTimers: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 20,
+  },
+  lockPreviewItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  lockDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  lockPreviewTime: {
+    ...typography.body,
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: colors.text,
+    fontVariant: ['tabular-nums'],
   },
 });

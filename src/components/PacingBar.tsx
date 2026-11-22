@@ -3,6 +3,7 @@ import { AppState, StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { Consumption } from '../store';
 import { colors, typography } from '../theme';
+import { formatConsumableCompactDose } from '../utils/consumableMeta';
 import { formatStopwatch, getSessionPacingStats } from '../utils/pacingStats';
 
 interface Props {
@@ -61,6 +62,8 @@ export default function PacingBar({ consumptions, sessionStartTime }: Props) {
   }
 
   if (hasAlcohol && hasTHC && stats.lastAlcohol && stats.lastTHC) {
+    const alcDose = formatConsumableCompactDose(stats.lastAlcohol);
+    const thcDose = formatConsumableCompactDose(stats.lastTHC);
     return (
       <View style={styles.container}>
         <View style={styles.splitRow}>
@@ -73,7 +76,7 @@ export default function PacingBar({ consumptions, sessionStartTime }: Props) {
               Total: {stats.totalStandardDrinks} {stats.totalStandardDrinks === 1 ? 'drink' : 'drinks'}
             </Text>
             <Text style={styles.subMetaText} numberOfLines={1}>
-              {stats.lastAlcohol.name}
+              {stats.lastAlcohol.name}{alcDose ? ` · ${alcDose}` : ''}
             </Text>
           </View>
 
@@ -86,7 +89,7 @@ export default function PacingBar({ consumptions, sessionStartTime }: Props) {
               Total: {stats.totalTHCMg}mg
             </Text>
             <Text style={styles.subMetaText} numberOfLines={1}>
-              {stats.lastTHC.name}
+              {stats.lastTHC.name}{thcDose ? ` · ${thcDose}` : ''}
             </Text>
           </View>
         </View>
@@ -96,6 +99,7 @@ export default function PacingBar({ consumptions, sessionStartTime }: Props) {
 
   const isTHC = hasTHC && stats.lastTHC !== null;
   const lastItem = isTHC ? stats.lastTHC! : stats.lastAlcohol!;
+  const lastDose = formatConsumableCompactDose(lastItem);
   const accentColor = isTHC ? colors.secondary : colors.primary;
   const timerTitle = isTHC ? 'Since Last THC' : 'Since Last Drink';
   const totalValue = isTHC
@@ -114,7 +118,7 @@ export default function PacingBar({ consumptions, sessionStartTime }: Props) {
             {formatStopwatch(lastItem.timestamp, now)}
           </Text>
           <Text style={styles.subMetaText} numberOfLines={1}>
-            {lastItem.name} · {formatClockTime(lastItem.timestamp)}
+            {lastItem.name}{lastDose ? ` · ${lastDose}` : ''} · {formatClockTime(lastItem.timestamp)}
           </Text>
         </View>
 

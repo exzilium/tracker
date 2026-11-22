@@ -6,6 +6,11 @@ import { useAppStore, Consumption, FavoriteItem } from '../store';
 import { colors, typography } from '../theme';
 import SubjectiveState from './SubjectiveState';
 import EntryIcon from './EntryIcon';
+import {
+  formatConsumableSubtitle,
+  getConsumableColor,
+  withAlpha,
+} from '../utils/consumableMeta';
 
 export default function StartSessionModal() {
   const startSession = useAppStore((state) => state.startSession);
@@ -31,6 +36,7 @@ export default function StartSessionModal() {
       type: f.type,
       name: f.name,
       emoji: f.emoji,
+      color: f.color,
       timestamp: Date.now(),
       calories: f.calories,
       durationMins: f.durationMins,
@@ -79,20 +85,33 @@ export default function StartSessionModal() {
           <View style={styles.favoritesGrid}>
             {favorites.map((fav) => {
               const isSelected = !!selectedFavorites.find(f => f.id === fav.id);
+              const itemColor = getConsumableColor(fav);
+              const subtitle = formatConsumableSubtitle(fav);
               return (
                 <TouchableOpacity 
                   key={fav.id} 
-                  style={[styles.favItem, isSelected && styles.favItemActive]}
+                  style={[
+                    styles.favItem,
+                    isSelected && {
+                      borderColor: itemColor,
+                      backgroundColor: withAlpha(itemColor, 0.12),
+                    },
+                  ]}
                   onPress={() => toggleFavorite(fav)}
                 >
                   <View style={styles.favEmojiContainer}>
-                    <EntryIcon iconString={fav.emoji || (fav.type === 'alcohol' ? '🍺' : '💨')} size={32} color={isSelected ? colors.primary : colors.text} />
+                    <EntryIcon iconString={fav.emoji || (fav.type === 'alcohol' ? '🍺' : '💨')} size={32} color={itemColor} />
                   </View>
-                  <Text style={[styles.favName, isSelected && styles.favNameActive]} numberOfLines={2}>
+                  <Text style={[styles.favName, isSelected && { color: colors.text, fontWeight: 'bold' }]} numberOfLines={2}>
                     {fav.name}
                   </Text>
+                  {!!subtitle && (
+                    <Text style={styles.favSubtitle} numberOfLines={1}>
+                      {subtitle}
+                    </Text>
+                  )}
                   {isSelected && (
-                    <View style={styles.checkBadge}>
+                    <View style={[styles.checkBadge, { backgroundColor: itemColor }]}>
                       <Feather name="check" size={12} color="#000" />
                     </View>
                   )}
@@ -174,10 +193,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'transparent',
   },
-  favItemActive: {
-    borderColor: colors.primary,
-    backgroundColor: 'rgba(187, 134, 252, 0.1)',
-  },
   favEmojiContainer: {
     marginBottom: 8,
     height: 32,
@@ -186,12 +201,16 @@ const styles = StyleSheet.create({
   },
   favName: {
     ...typography.caption,
-    color: colors.textSecondary,
+    color: colors.text,
+    fontWeight: 'bold',
     textAlign: 'center',
   },
-  favNameActive: {
-    color: colors.primary,
-    fontWeight: 'bold',
+  favSubtitle: {
+    ...typography.caption,
+    fontSize: 11,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginTop: 4,
   },
   checkBadge: {
     position: 'absolute',

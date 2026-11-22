@@ -63,6 +63,24 @@ export async function registerForPushNotificationsAsync() {
   return token ?? null;
 }
 
+export async function ensureNotificationPermission(): Promise<boolean> {
+  if (Platform.OS === 'web' || isExpoGo || !Notifications) {
+    return false;
+  }
+
+  try {
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    if (existingStatus === 'granted') {
+      return true;
+    }
+    const { status } = await Notifications.requestPermissionsAsync();
+    return status === 'granted';
+  } catch (e) {
+    console.warn('Failed to check/request notification permission', e);
+    return false;
+  }
+}
+
 export async function scheduleHydrationReminder() {
   if (Platform.OS === 'web' || isExpoGo || !Notifications) return;
 

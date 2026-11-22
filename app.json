@@ -12,6 +12,7 @@
     },
     "android": {
       "package": "com.caseydwyer.tracker",
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -37,7 +38,14 @@
       "react-native-iap",
       "expo-font",
       "expo-sharing",
-      "expo-secure-store"
+      "expo-secure-store",
+      "./plugins/withLocalReleaseSigning",
+      [
+        "./plugins/withAndroidKotlinVersion",
+        {
+          "kotlinVersion": "2.3.0"
+        }
+      ]
     ]
   }
 }
